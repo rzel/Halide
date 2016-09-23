@@ -69,32 +69,37 @@ enum class TailStrategy {
  * function is done by generating a loop nest that spans its
  * dimensions. We schedule the inputs to that function by
  * recursively injecting realizations for them at particular sites
- * in this loop nest. A LoopLevel identifies such a site. */
+ * in this loop nest. A LoopLevel identifies such a site. The site
+ * can either be a specific loopness within all stages of a function
+ * or it can refer to a loopness within a particular function's
+ * stage (initial definition or updates).
+ */
 class LoopLevel {
-    // Note: func_ is nullptr for inline or root.
-    Internal::IntrusivePtr<Internal::FunctionContents> function_contents;
-    // TODO: these two fields should really be VarOrRVar, 
+    // Note: 'f_name' (function/stage name) is empty for inline or root.
+    std::string f_name;
+    // TODO: these two fields should really be VarOrRVar,
     // but cyclical include dependencies make this challenging.
     std::string var_name;
     bool is_rvar;
 
-    EXPORT LoopLevel(Internal::IntrusivePtr<Internal::FunctionContents> f, const std::string &var_name, bool is_rvar);
-    EXPORT std::string func_name() const;
+    EXPORT LoopLevel(const std::string &f_name, const std::string &var_name, bool is_rvar);
 
 public:
+    /** Return the name of the function (or specific stage) associated with
+     * this loop level */
+    EXPORT const std::string &name() const;
+
     /** Identify the loop nest corresponding to some dimension of some function */
     // @{
     EXPORT LoopLevel(Internal::Function f, VarOrRVar v);
     EXPORT LoopLevel(Func f, VarOrRVar v);
+    EXPORT LoopLevel(const std::string &name, VarOrRVar v);
     // @}
 
     /** Construct an empty LoopLevel, which is interpreted as
      * 'inline'. This is a special LoopLevel value that implies
      * that a function should be inlined away */
-    LoopLevel() : function_contents(nullptr), var_name(""), is_rvar(false) {}
-
-    /** Return the Func. Asserts if the LoopLevel is_root() or is_inline(). */
-    EXPORT Func func() const;
+    LoopLevel() : f_name(""), var_name(""), is_rvar(false) {}
 
     /** Return the VarOrRVar. Asserts if the LoopLevel is_root() or is_inline(). */
     EXPORT VarOrRVar var() const;
@@ -291,6 +296,16 @@ public:
     const LoopLevel &compute_level() const;
     LoopLevel &store_level();
     LoopLevel &compute_level();
+    // @}
+
+    /** Until which loop level (starting from outermost) we should fuse
+     * computation of this function with another function? The function we are
+     * fusing this function with and this function should be independent of
+     * each other.
+     */
+    // @{
+    const LoopLevel &fuse_level() const;
+    LoopLevel &fuse_level();
     // @}
 
     /** Are race conditions permitted? */
