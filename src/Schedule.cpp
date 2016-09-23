@@ -7,24 +7,16 @@
 
 namespace Halide {
 
-LoopLevel::LoopLevel(Internal::IntrusivePtr<Internal::FunctionContents> f, 
-                     const std::string &var_name, 
-                     bool is_rvar) 
-    : function_contents(f), var_name(var_name), is_rvar(is_rvar) {}
-LoopLevel::LoopLevel(Internal::Function f, VarOrRVar v) : LoopLevel(f.get_contents(), v.name(), v.is_rvar) {}
-LoopLevel::LoopLevel(Func f, VarOrRVar v) : LoopLevel(f.function().get_contents(), v.name(), v.is_rvar) {}
+LoopLevel::LoopLevel(const std::string &f_name,
+                     const std::string &var_name,
+                     bool is_rvar)
+    : f_name(f_name), var_name(var_name), is_rvar(is_rvar) {}
+LoopLevel::LoopLevel(Internal::Function f, VarOrRVar v) : LoopLevel(f.name(), v.name(), v.is_rvar) {}
+LoopLevel::LoopLevel(Func f, VarOrRVar v) : LoopLevel(f.name(), v.name(), v.is_rvar) {}
+LoopLevel::LoopLevel(const std::string &name, VarOrRVar v) : LoopLevel(name, v.name(), v.is_rvar) {}
 
-std::string LoopLevel::func_name() const {
-    if (function_contents.defined()) {
-        return Internal::Function(function_contents).name();
-    }
-    return "";
-}
-
-Func LoopLevel::func() const {
-    internal_assert(!is_inline() && !is_root());
-    internal_assert(function_contents.defined());
-    return Func(Internal::Function(function_contents));
+const std::string &LoopLevel::name() const {
+    return f_name;
 }
 
 VarOrRVar LoopLevel::var() const {
@@ -38,7 +30,7 @@ bool LoopLevel::is_inline() const {
 
 /*static*/
 LoopLevel LoopLevel::root() {
-    return LoopLevel(nullptr, "__root", false);
+    return LoopLevel("", "__root", false);
 }
 
 bool LoopLevel::is_root() const {
@@ -46,18 +38,18 @@ bool LoopLevel::is_root() const {
 }
 
 std::string LoopLevel::to_string() const {
-    return (function_contents.defined() ? Internal::Function(function_contents).name() : "") + "." + var_name;
+    return f_name + "." + var_name;
 }
 
 bool LoopLevel::match(const std::string &loop) const {
-    return Internal::starts_with(loop, func_name() + ".") && 
+    return Internal::starts_with(loop, name() + ".") &&
            Internal::ends_with(loop, "." + var_name);
 }
 
 bool LoopLevel::match(const LoopLevel &other) const {
     // Must compare by name, not by pointer, since in() can make copies
     // that we need to consider equivalent
-    return (func_name() == other.func_name() &&
+    return (name() == other.name() &&
             (var_name == other.var_name ||
              Internal::ends_with(var_name, "." + other.var_name) ||
              Internal::ends_with(other.var_name, "." + var_name)));
@@ -66,7 +58,7 @@ bool LoopLevel::match(const LoopLevel &other) const {
 bool LoopLevel::operator==(const LoopLevel &other) const {
     // Must compare by name, not by pointer, since in() can make copies
     // that we need to consider equivalent
-    return func_name() == other.func_name() && var_name == other.var_name;
+    return name() == other.name() && var_name == other.var_name;
 }
 
 namespace Internal {
@@ -82,7 +74,7 @@ IntrusivePtr<FunctionContents> deep_copy_function_contents_helper(
 struct ScheduleContents {
     mutable RefCount ref_count;
 
-    LoopLevel store_level, compute_level;
+    LoopLevel store_level, compute_level, fuse_level;
     std::vector<ReductionVariable> rvars;
     std::vector<Split> splits;
     std::vector<Dim> dims;
@@ -147,6 +139,7 @@ Schedule Schedule::deep_copy(
     Schedule copy;
     copy.contents->store_level = contents->store_level;
     copy.contents->compute_level = contents->compute_level;
+    copy.contents->fuse_level = contents->fuse_level;
     copy.contents->rvars = contents->rvars;
     copy.contents->splits = contents->splits;
     copy.contents->dims = contents->dims;
@@ -257,12 +250,20 @@ LoopLevel &Schedule::compute_level() {
     return contents->compute_level;
 }
 
+LoopLevel &Schedule::fuse_level() {
+    return contents->fuse_level;
+}
+
 const LoopLevel &Schedule::store_level() const {
     return contents->store_level;
 }
 
 const LoopLevel &Schedule::compute_level() const {
     return contents->compute_level;
+}
+
+const LoopLevel &Schedule::fuse_level() const {
+    return contents->fuse_level;
 }
 
 bool &Schedule::allow_race_conditions() {

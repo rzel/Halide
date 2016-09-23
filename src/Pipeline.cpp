@@ -911,7 +911,7 @@ struct JITFuncCallContext {
 
 // Make a vector of void *'s to pass to the jit call using the
 // currently bound value for all of the params and image
-// params. 
+// params.
 vector<const void *> Pipeline::prepare_jit_call_arguments(Realization dst, const Target &target) {
     user_assert(defined()) << "Can't realize an undefined Pipeline\n";
 

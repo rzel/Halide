@@ -59,6 +59,7 @@ class Stage {
                Expr factor, bool exact, TailStrategy tail);
     void remove(const std::string &var);
     Stage &purify(VarOrRVar old_name, VarOrRVar new_name);
+    std::string get_stage_index_name() const;
 
 public:
     Stage(Internal::Definition d, const std::string &n, const std::vector<Var> &args,
@@ -162,6 +163,14 @@ public:
     // @{
     EXPORT Func rfactor(std::vector<std::pair<RVar, Var>> preserved);
     EXPORT Func rfactor(RVar r, Var v);
+    // @}
+
+    /** Schedule the iteration over this stage to be fused with another
+     * stage 's' from outermost loop to a given LoopLevel. */
+    // @{
+    EXPORT Stage &compute_with(LoopLevel loop_level);
+    EXPORT Stage &compute_with(Stage s, Var var);
+    EXPORT Stage &compute_with(Stage s, RVar var);
     // @}
 
     /** Scheduling calls that control how the domain of this stage is
@@ -1600,6 +1609,14 @@ public:
     /** Schedule a function to be computed within the iteration over
      * a given LoopLevel. */
     EXPORT Func &compute_at(LoopLevel loop_level);
+
+    /** Schedule the iteration over the initial definition of this function
+     *  to be fused with another stage 's' from outermost loop to a
+     * given LoopLevel. */
+    // @{
+    EXPORT Func &compute_with(Stage s, Var var);
+    EXPORT Func &compute_with(Stage s, RVar var);
+    EXPORT Func &compute_with(LoopLevel loop_level);
 
     /** Compute all of this function once ahead of time. Reusing
      * the example in \ref Func::compute_at :

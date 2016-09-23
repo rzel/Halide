@@ -1440,6 +1440,30 @@ Stage &Stage::hexagon(VarOrRVar x) {
     return *this;
 }
 
+string Stage::get_stage_index_name() const {
+    vector<std::string> tmp = split_string(stage_name, ".update(");
+    internal_assert(!tmp.empty() && !tmp[0].empty());
+    std::string index = "0";
+    if (tmp.size() == 2) {
+        internal_assert(!tmp[1].empty());
+        index = tmp[1];
+    }
+    return tmp[0] + ".s" + index;
+}
+
+Stage &Stage::compute_with(LoopLevel loop_level) {
+    definition.schedule().fuse_level() = loop_level;
+    return *this;
+}
+
+Stage &Stage::compute_with(Stage s, Var var) {
+    return compute_with(LoopLevel(s.get_stage_index_name(), var));
+}
+
+Stage &Stage::compute_with(Stage s, RVar var) {
+    return compute_with(LoopLevel(s.get_stage_index_name(), var));
+}
+
 void Func::invalidate_cache() {
     if (pipeline_.defined()) {
         pipeline_.invalidate_cache();
@@ -1916,6 +1940,25 @@ Func &Func::compute_at(Func f, RVar var) {
 
 Func &Func::compute_at(Func f, Var var) {
     return compute_at(LoopLevel(f, var));
+}
+
+
+Func &Func::compute_with(LoopLevel loop_level) {
+    invalidate_cache();
+    Stage(func.definition(), name(), args(), func.schedule().storage_dims()).compute_with(loop_level);
+    return *this;
+}
+
+Func &Func::compute_with(Stage s, Var var) {
+    invalidate_cache();
+    Stage(func.definition(), name(), args(), func.schedule().storage_dims()).compute_with(s, var);
+    return *this;
+}
+
+Func &Func::compute_with(Stage s, RVar var) {
+    invalidate_cache();
+    Stage(func.definition(), name(), args(), func.schedule().storage_dims()).compute_with(s, var);
+    return *this;
 }
 
 Func &Func::compute_root() {
