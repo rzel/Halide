@@ -43,7 +43,20 @@ vector<string> realization_order(const vector<Function> &outputs,
     // set describing its inputs.
     map<string, set<string>> graph;
 
+    map<string, set<string>> compute_with;
+
     for (const pair<string, Function> &caller : env) {
+        const auto &fuse_level = caller.second.schedule().fuse_level();
+        debug(0) << "Loop level of " << caller.first << ": " << fuse_level.name() << "\n";
+        if (!fuse_level.is_inline()) {
+            vector<std::string> tmp = split_string(fuse_level.name(), ".");
+            internal_assert(!tmp.empty() && !tmp[0].empty());
+
+            //TODO(psuriana): make sure we don't have cyclic compute_with
+            debug(0) << caller.first << " is computed with " << fuse_level.name() << "\n";
+            compute_with[caller.first].insert(tmp[0]);
+        }
+
         set<string> &s = graph[caller.first];
         for (const pair<string, Function> &callee : find_direct_calls(caller.second)) {
             s.insert(callee.first);

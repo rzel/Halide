@@ -1452,6 +1452,7 @@ string Stage::get_stage_index_name() const {
 }
 
 Stage &Stage::compute_with(LoopLevel loop_level) {
+    debug(0) << name() << " computed with " << loop_level.name() << "\n";
     definition.schedule().fuse_level() = loop_level;
     return *this;
 }
