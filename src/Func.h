@@ -48,10 +48,10 @@ struct StorageDim;
 
 /** A single definition of a Func. May be a pure or update definition. */
 class Stage {
+    Internal::Function func; // Pointer to the Func this stage or the definition belongs to
     Internal::Definition definition;
-    std::string stage_name;
+    size_t stage;
     std::vector<Var> dim_vars; // Pure Vars of the Function (from the init definition)
-    std::vector<Internal::StorageDim> storage_dims;
 
     void set_dim_type(VarOrRVar var, Internal::ForType t);
     void set_dim_device_api(VarOrRVar var, DeviceAPI device_api);
@@ -59,19 +59,18 @@ class Stage {
                Expr factor, bool exact, TailStrategy tail);
     void remove(const std::string &var);
     Stage &purify(VarOrRVar old_name, VarOrRVar new_name);
-    std::string get_stage_index_name() const;
+
+    const std::vector<Internal::StorageDim> &storage_dims() const { return func.schedule().storage_dims(); }
 
 public:
-    Stage(Internal::Definition d, const std::string &n, const std::vector<Var> &args,
-          const std::vector<Internal::StorageDim> &sdims)
-            : definition(d), stage_name(n), dim_vars(args), storage_dims(sdims) {
+    Stage(Internal::Function f, Internal::Definition d, size_t stage, const std::vector<Var> &args)
+            : func(f), definition(d), stage(stage), dim_vars(args) {
         internal_assert(definition.args().size() == dim_vars.size());
         definition.schedule().touched() = true;
     }
 
-    Stage(Internal::Definition d, const std::string &n, const std::vector<std::string> &args,
-          const std::vector<Internal::StorageDim> &sdims)
-            : definition(d), stage_name(n), storage_dims(sdims) {
+    Stage(Internal::Function f, Internal::Definition d, int stage, const std::vector<std::string> &args)
+            : func(f), definition(d), stage(stage) {
         definition.schedule().touched() = true;
 
         std::vector<Var> dim_vars(args.size());
@@ -91,7 +90,7 @@ public:
     EXPORT std::string dump_argument_list() const;
 
     /** Return the name of this stage, e.g. "f.update(2)" */
-    EXPORT const std::string &name() const;
+    EXPORT std::string name() const;
 
     /** Calling rfactor() on an associative update definition a Func will split
      * the update into an intermediate which computes the partial results and

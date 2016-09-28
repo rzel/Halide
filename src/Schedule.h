@@ -75,31 +75,38 @@ enum class TailStrategy {
  * stage (initial definition or updates).
  */
 class LoopLevel {
-    // Note: 'f_name' (function/stage name) is empty for inline or root.
-    std::string f_name;
+    // Note: func_ is nullptr for inline or root.
+    Internal::IntrusivePtr<Internal::FunctionContents> function_contents;
+    // If set to -1, this loop level does not refer to a particular stage of the
+    // function. 0 refers to initial stage, 1 refers to the 1st update stage, etc.
+    int stage_index;
     // TODO: these two fields should really be VarOrRVar,
     // but cyclical include dependencies make this challenging.
     std::string var_name;
     bool is_rvar;
 
-    EXPORT LoopLevel(const std::string &f_name, const std::string &var_name, bool is_rvar);
+    EXPORT LoopLevel(Internal::IntrusivePtr<Internal::FunctionContents> f,
+                     const std::string &var_name, bool is_rvar, int stage);
+    EXPORT std::string func_name() const;
 
 public:
-    /** Return the name of the function (or specific stage) associated with
-     * this loop level */
-    EXPORT const std::string &name() const;
+    /** Return the function stage associated with this loop level.
+     * Asserts if undefined */
+    EXPORT int stage() const;
 
     /** Identify the loop nest corresponding to some dimension of some function */
     // @{
-    EXPORT LoopLevel(Internal::Function f, VarOrRVar v);
-    EXPORT LoopLevel(Func f, VarOrRVar v);
-    EXPORT LoopLevel(const std::string &name, VarOrRVar v);
+    EXPORT LoopLevel(Internal::Function f, VarOrRVar v, int stage = -1);
+    EXPORT LoopLevel(Func f, VarOrRVar v, int stage = -1);
     // @}
 
     /** Construct an empty LoopLevel, which is interpreted as
      * 'inline'. This is a special LoopLevel value that implies
      * that a function should be inlined away */
-    LoopLevel() : f_name(""), var_name(""), is_rvar(false) {}
+    LoopLevel() : function_contents(nullptr), stage_index(-1), var_name(""), is_rvar(false) {}
+
+    /** Return the Func. Asserts if the LoopLevel is_root() or is_inline(). */
+    EXPORT Internal::Function func() const;
 
     /** Return the VarOrRVar. Asserts if the LoopLevel is_root() or is_inline(). */
     EXPORT VarOrRVar var() const;
@@ -189,6 +196,29 @@ struct StorageDim {
     Expr alignment;
     Expr fold_factor;
     bool fold_forward;
+};
+
+/** This indicates two function stages which loopness are fused from outermost
+ * to a specific loop level: "func_1" at stage "stage_1" is fused with "func_2"
+ * at stage "stage_2" from outermost to loop level "var_name", and "func_1" is
+ * to be computed before "func_2". */
+struct FusedPair {
+    std::string func_1;
+    std::string func_2;
+    size_t stage_1;
+    size_t stage_2;
+    std::string var_name;
+
+    FusedPair() {}
+    FusedPair(const std::string &f1, size_t s1, const std::string &f2, size_t s2,
+              const std::string &var)
+        : func_1(f1), func_2(f2), stage_1(s1), stage_2(s2), var_name(var) {}
+
+    bool operator==(const FusedPair &other) const {
+        return (func_1 == other.func_1) && (func_2 == other.func_2) &&
+               (stage_1 == other.stage_1) && (stage_2 == other.stage_2) &&
+               (var_name == other.var_name);
+    }
 };
 
 class ReductionDomain;
@@ -306,6 +336,15 @@ public:
     // @{
     const LoopLevel &fuse_level() const;
     LoopLevel &fuse_level();
+    // @}
+
+    /** List of function stages that are to be fused with this function stage
+     * from the outermost loop to a certain loop level. Those functions are
+     * to be computed AFTER this function at the last fused loop level.
+     * See \ref Func::compute_with */
+    // @{
+    const std::vector<FusedPair> &fused_pairs() const;
+    std::vector<FusedPair> &fused_pairs();
     // @}
 
     /** Are race conditions permitted? */

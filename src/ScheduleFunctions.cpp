@@ -911,7 +911,7 @@ string schedule_to_source(Function f,
                 if (store_var_name == Var::outermost().name()) {
                     store_var_name = "Var::outermost()";
                 }
-                ss << ".store_at(" << store_at.name() << ", " << store_var_name << ")";
+                ss << ".store_at(" << store_at.func().name() << ", " << store_var_name << ")";
             }
         }
         if (compute_at.is_root()) {
@@ -921,7 +921,7 @@ string schedule_to_source(Function f,
             if (compute_var_name == Var::outermost().name()) {
                 compute_var_name = "Var::outermost()";
             }
-            ss << ".compute_at(" << compute_at.name() << ", " << compute_var_name << ")";
+            ss << ".compute_at(" << compute_at.func().name() << ", " << compute_var_name << ")";
         }
     }
     ss << ";";
