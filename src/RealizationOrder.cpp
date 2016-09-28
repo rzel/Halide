@@ -2,6 +2,7 @@
 
 #include "RealizationOrder.h"
 #include "FindCalls.h"
+#include "Func.h"
 
 namespace Halide {
 namespace Internal {
@@ -43,24 +44,36 @@ vector<string> realization_order(const vector<Function> &outputs,
     // set describing its inputs.
     map<string, set<string>> graph;
 
-    map<string, set<string>> compute_with;
+    vector<FusedPair> func_fused_pairs;
 
     for (const pair<string, Function> &caller : env) {
-        const auto &fuse_level = caller.second.schedule().fuse_level();
-        debug(0) << "Loop level of " << caller.first << ": " << fuse_level.name() << "\n";
-        if (!fuse_level.is_inline()) {
-            vector<std::string> tmp = split_string(fuse_level.name(), ".");
-            internal_assert(!tmp.empty() && !tmp[0].empty());
-
-            //TODO(psuriana): make sure we don't have cyclic compute_with
-            debug(0) << caller.first << " is computed with " << fuse_level.name() << "\n";
-            compute_with[caller.first].insert(tmp[0]);
+        //TODO(psuriana): make sure we don't have cyclic compute_with
+        {
+            for (const auto &p : caller.second.definition().schedule().fused_pairs()) {
+                internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
+                     << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
+                     << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
+                func_fused_pairs.push_back(p);
+            }
+        }
+        for (const Definition &def : caller.second.updates()) {
+            for (const auto &p : def.schedule().fused_pairs()) {
+                internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
+                     << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
+                     << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
+                func_fused_pairs.push_back(p);
+            }
         }
 
         set<string> &s = graph[caller.first];
         for (const pair<string, Function> &callee : find_direct_calls(caller.second)) {
             s.insert(callee.first);
         }
+    }
+
+    for (const auto &iter : func_fused_pairs) {
+        debug(0) << "Func " << iter.func_1 << ".s" << iter.stage_1 << " computed after"
+                 << " Func " << iter.func_1 << ".s" << iter.stage_2 << " at Var " << iter.var_name << "\n";
     }
 
     vector<string> order;
