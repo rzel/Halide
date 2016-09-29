@@ -54,15 +54,15 @@ void find_fuse_group_dfs(string current,
     }
 }
 
-vector<vector<string>> find_fuse_group(const map<string, Function> &env,
+vector<vector<string>> find_fuse_group(const vector<string> &order,
                                        const map<string, set<string>> &fuse_adjacency_list) {
     set<string> visited;
     vector<vector<string>> result;
 
-    for (const auto &iter : env) {
-        if (visited.find(iter.first) == visited.end()) {
+    for (const auto &fn : order) {
+        if (visited.find(fn) == visited.end()) {
             vector<string> group;
-            find_fuse_group_dfs(iter.first, fuse_adjacency_list, visited, group);
+            find_fuse_group_dfs(fn, fuse_adjacency_list, visited, group);
             result.push_back(std::move(group));
         }
     }
@@ -88,6 +88,7 @@ void collect_fused_pairs(const map<string, Function> &env,
 
         // Assert no dependencies among the functions that are computed_with.
         // Self-dependecy is allowed in update stages.
+        // TODO(psuriana): CANNOT LOOP IF THERE IS LOOP-CARRY DEPENDENCY
         if (p.func_1 != p.func_2) {
             const auto &callees_1 = indirect_calls.find(p.func_1);
             if (callees_1 != indirect_calls.end()) {
@@ -102,6 +103,8 @@ void collect_fused_pairs(const map<string, Function> &env,
                     << p.func_1 << " and " << p.func_2 << "\n";
             }
         }
+
+        //TODO(psuriana): Assert their dimensions/schedules from outermost to 'var' match exactly.
 
         fuse_adjacency_list[p.func_1].insert(p.func_2);
         fuse_adjacency_list[p.func_2].insert(p.func_1);
@@ -221,9 +224,29 @@ vector<string> realization_order(const vector<Function> &outputs,
     }
     debug(0) << "\n";
 
-    vector<vector<string>> fuse_group = find_fuse_group(env, fuse_adjacency_list);
+    vector<vector<string>> fuse_group = find_fuse_group(order, fuse_adjacency_list);
 
-    debug(0) << "\n";
+    debug(0) << "\nBEFORE SORT\n";
+    for (const auto &group : fuse_group) {
+        debug(0) << "Fused group: " << "\n";
+        for (const auto &fn : group) {
+            debug(0) << fn << ", ";
+        }
+        debug(0) << "\n";
+    }
+
+    // Sort the fused group based on the realization order
+    for (auto &group : fuse_group) {
+        std::sort(group.begin(), group.end(),
+            [&](const string &lhs, const string &rhs){
+                const auto iter_lhs = std::find(order.begin(), order.end(), lhs);
+                const auto iter_rhs = std::find(order.begin(), order.end(), rhs);
+                return iter_lhs < iter_rhs;
+            }
+        );
+    }
+
+    debug(0) << "\nAFTER SORT\n";
     for (const auto &group : fuse_group) {
         debug(0) << "Fused group: " << "\n";
         for (const auto &fn : group) {

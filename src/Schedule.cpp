@@ -61,8 +61,13 @@ std::string LoopLevel::to_string() const {
 }
 
 bool LoopLevel::match(const std::string &loop) const {
-    return Internal::starts_with(loop, func_name() + ".") &&
-           Internal::ends_with(loop, "." + var_name);
+    if (stage_index == -1) {
+        return Internal::starts_with(loop, func_name() + ".") &&
+               Internal::ends_with(loop, "." + var_name);
+    } else {
+        return Internal::starts_with(loop, func_name() + ".s" + std::to_string(stage_index)) &&
+               Internal::ends_with(loop, "." + var_name);
+    }
 }
 
 bool LoopLevel::match(const LoopLevel &other) const {
