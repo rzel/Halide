@@ -1437,8 +1437,13 @@ Stage &Stage::hexagon(VarOrRVar x) {
 }
 
 Stage &Stage::compute_with(LoopLevel loop_level) {
-    internal_assert(!loop_level.is_inline());
-    debug(0) << "Compute with " << name() << " at " << loop_level.to_string() << "\n";
+    user_assert(!loop_level.is_inline() && !loop_level.is_root())
+        << "Undefined loop level to compute with\n";
+    user_assert((loop_level.func().name() != func.name()) || (loop_level.stage() < (int)stage))
+        << "Cannot schedule " << name() << " to be computed with " << loop_level.to_string()
+        << ". Stage of a func has to be computed AFTER its previous stages\n";
+
+    debug(0) << "compute_with " << name() << " at " << loop_level.to_string() << "\n";
     // We have to mark the fuse level on the "original" definition (the one
     // without the specialization) to ensure there is no competing compute_with.
     Definition &original_def = (stage == 0) ? func.definition() : func.update(stage - 1);
@@ -1460,7 +1465,6 @@ Stage &Stage::compute_with(LoopLevel loop_level) {
 }
 
 Stage &Stage::compute_with(Stage s, Var var) {
-    debug(0) << "**COMPUTE WITH AT VAR: " << var.name() << "\n";
     return compute_with(LoopLevel(s.func, var, s.stage));
 }
 
