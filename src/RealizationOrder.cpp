@@ -37,43 +37,132 @@ void realization_order_dfs(string current,
     order.push_back(current);
 }
 
+void find_fused_group(string current,
+                      const map<string, vector<FusedPair>> &fused_pairs_graph,
+                      set<string> &visited,
+                      vector<vector<string>> &group) {
+    visited.insert(current);
+
+    map<string, vector<FusedPair>>::const_iterator iter = fused_pairs_graph.find(current);
+    internal_assert(iter != fused_pairs_graph.end());
+
+    for (const string &fn : iter->second) {
+        if (visited.find(fn) == visited.end()) {
+            find_fused_group(fn, fused_pairs_graph, visited, group);
+        }
+    }
+
+    order.push_back(current);
+}
+
+void collect_fused_pairs(const map<string, map<string, Function>> &indirect_calls,
+                         const vector<FusedPair> &pairs,
+                         vector<FusedPair> &func_fused_pairs,
+                         map<string, set<string>> &graph) {
+    for (const auto &p : pairs) {
+        // Assert no duplicates (this technically should not have been possible from the front-end)
+        internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
+             << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
+             << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
+
+        // Assert no dependencies among the functions that are computed_with.
+        // Self-dependecy is allowed in update stages.
+        if (p.func_1 != p.func_2) {
+            const auto &callees_1 = indirect_calls.find(p.func_1);
+            if (callees_1 != indirect_calls.end()) {
+                user_assert(callees_1->second.find(p.func_2) == callees_1->second.end())
+                    << "Invalid compute_with: there is dependency between "
+                    << p.func_1 << " and " << p.func_2 << "\n";
+            }
+            const auto &callees_2 = indirect_calls.find(p.func_2);
+            if (callees_2 != indirect_calls.end()) {
+                user_assert(callees_2->second.find(p.func_1) == callees_2->second.end())
+                    << "Invalid compute_with: there is dependency between "
+                    << p.func_1 << " and " << p.func_2 << "\n";
+            }
+        }
+
+        func_fused_pairs.push_back(p);
+        graph[p.func_2].insert(p.func_1);
+    }
+}
+
 vector<string> realization_order(const vector<Function> &outputs,
                                  const map<string, Function> &env) {
+
+    // Collect all indirect calls made by all the functions in "env".
+    map<string, map<string, Function>> indirect_calls;
+    for (const pair<string, Function> &caller : env) {
+        map<string, Function> more_funcs = find_transitive_calls(caller.second);
+        indirect_calls.emplace(caller.first, std::move(more_funcs));
+    }
+
+    for (const auto &it1 : indirect_calls) {
+        debug(0) << "Function calls by: " <<  it1.first << "\n";
+        for (const auto &it2 : it1.second) {
+            debug(0) << "  " << it2.first << "\n";
+        }
+    }
 
     // Make a DAG representing the pipeline. Each function maps to the
     // set describing its inputs.
     map<string, set<string>> graph;
 
-    vector<FusedPair> func_fused_pairs;
+    // Make a DAG representing the compute_with dependencies between functions.
+    // Each function maps to the list of Functions computed_with it.
+    map<string, vector<FusedPair>> fused_pairs_graph;
 
     for (const pair<string, Function> &caller : env) {
-        //TODO(psuriana): make sure we don't have cyclic compute_with
-        {
-            for (const auto &p : caller.second.definition().schedule().fused_pairs()) {
-                internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
-                     << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
-                     << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
-                func_fused_pairs.push_back(p);
-            }
-        }
-        for (const Definition &def : caller.second.updates()) {
-            for (const auto &p : def.schedule().fused_pairs()) {
-                internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
-                     << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
-                     << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
-                func_fused_pairs.push_back(p);
-            }
-        }
-
         set<string> &s = graph[caller.first];
         for (const pair<string, Function> &callee : find_direct_calls(caller.second)) {
             s.insert(callee.first);
         }
+
+        // Find all compute_with (fused) pairs. We have to look at the update
+        // definitions as well since compute_with is defined per definition.
+        vector<FusedPair> &func_fused_pairs = fused_pairs_graph[caller.first];
+        collect_fused_pairs(
+            indirect_calls, caller.second.definition().schedule().fused_pairs(), func_fused_pairs, graph);
+        for (const Definition &def : caller.second.updates()) {
+            collect_fused_pairs(indirect_calls, def.schedule().fused_pairs(), func_fused_pairs, graph);
+        }
     }
 
-    for (const auto &iter : func_fused_pairs) {
-        debug(0) << "Func " << iter.func_1 << ".s" << iter.stage_1 << " computed after"
-                 << " Func " << iter.func_1 << ".s" << iter.stage_2 << " at Var " << iter.var_name << "\n";
+    for (const auto &i : fused_pairs_graph) {
+        debug(0) << "Fused pairs of Func " << i.first << "\n";
+        for (const auto &iter : i.second) {
+            debug(0) << "   Func " << iter.func_1 << ".s" << iter.stage_1 << " computed before"
+                     << " Func " << iter.func_2 << ".s" << iter.stage_2 << " at Var " << iter.var_name << "\n";
+        }
+    }
+
+    for (const auto &i : graph) {
+        debug(0) << "Callees of Func " << i.first << "\n";
+        for (const auto &callee : i.second) {
+            debug(0) << callee << ", ";
+        }
+        debug(0) << "\n";
+    }
+
+    // Make sure we don't have cyclic compute_with: if Func f is computed after
+    // Func g, Func g should not be computed after Func f.
+    for (const auto &iter : fused_pairs_graph) {
+        for (const auto &pair : iter.second) {
+            if (pair.func_1 == pair.func_2) {
+                // compute_with among stages of a function is okay,
+                // e.g. f.update(0).compute_with(f, x)
+                continue;
+            }
+            const auto o_iter = fused_pairs_graph.find(pair.func_2);
+            if (o_iter == fused_pairs_graph.end()) {
+                continue;
+            }
+            const auto it = std::find_if(o_iter->second.begin(), o_iter->second.end(),
+                [&pair](const FusedPair& other) { return (pair.func_1 == other.func_2) && (pair.func_2 == other.func_1); });
+            user_assert(it == o_iter->second.end())
+                << "Found cyclic dependencies between compute_with of "
+                << pair.func_1 << " and " << pair.func_2 << "\n";
+        }
     }
 
     vector<string> order;
@@ -85,6 +174,12 @@ vector<string> realization_order(const vector<Function> &outputs,
             realization_order_dfs(f.name(), graph, visited, result_set, order);
         }
     }
+
+    debug(0) << "\nREALIZATION ORDER: ";
+    for (const auto &iter : order) {
+        debug(0) << iter << ", ";
+    }
+    debug(0) << "\n";
 
     return order;
 }
