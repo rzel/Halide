@@ -1168,6 +1168,7 @@ class RemoveLoopsOverOutermost : public IRMutator {
 
 Stmt schedule_functions(const vector<Function> &outputs,
                         const vector<string> &order,
+                        const vector<vector<string>> &fuse_group,
                         const map<string, Function> &env,
                         const Target &target,
                         bool &any_memoized) {
@@ -1176,6 +1177,9 @@ Stmt schedule_functions(const vector<Function> &outputs,
     Stmt s = For::make(root_var, 0, 1, ForType::Serial, DeviceAPI::Host, Evaluate::make(0));
 
     any_memoized = false;
+
+    //TODO(psuriana): Assert the dimensions/schedules of functions within a group
+    // from outermost to 'var' match exactly.
 
     for (size_t i = order.size(); i > 0; i--) {
         Function f = env.find(order[i-1])->second;
