@@ -668,8 +668,6 @@ public:
 
 private:
 
-    string producing;
-
     Stmt build_pipeline(Stmt s) {
         pair<Stmt, Stmt> realization = build_production(func);
 
@@ -713,23 +711,6 @@ private:
     }
 
     using IRMutator::visit;
-
-    void visit(const ProducerConsumer *op) {
-        if (op->is_producer) {
-            string old = producing;
-            producing = op->name;
-            Stmt body = mutate(op->body);
-            producing = old;
-
-            if (body.same_as(op->body)) {
-                stmt = op;
-            } else {
-                stmt = ProducerConsumer::make(op->name, op->is_producer, body);
-            }
-        } else {
-            IRMutator::visit(op);
-        }
-    }
 
     void visit(const For *for_loop) {
         debug(3) << "InjectRealization of " << func.name() << " entering for loop over " << for_loop->name << "\n";
@@ -809,6 +790,196 @@ private:
             found_store_level = found_compute_level = true;
         } else {
             stmt = op;
+        }
+    }
+};
+
+std::ostream& operator<<(std::ostream& out, const std::vector<Function>& v) {
+    out << "{ ";
+    for (size_t i = 0; i < v.size(); ++i) {
+        out << v[i].name();
+        if (i != v.size() - 1) {
+            out << ", ";
+        }
+    }
+    out << " }";
+    return out;
+}
+
+// Inject the allocation and realization of a group of functions which are
+// to be fused into an existing loop nest using its schedule.
+class InjectGroupRealization : public IRMutator {
+public:
+    vector<Function> &group; // Member of the fused loop starting from the first to be realized to the last
+    const vector<bool> &is_output_list; // List of booleans indicating if group[i] is an output
+    bool found_store_level, found_compute_level;
+    const Target &target;
+    LoopLevel compute_level;
+    LoopLevel store_level;
+
+    InjectGroupRealization(vector<Function> &g, const vector<bool> &o, const Target &t, const vector<string> &order)
+            : group(g), is_output_list(o), found_store_level(false), found_compute_level(false), target(t) {
+        internal_assert(!group.empty());
+        internal_assert(group.size() == is_output_list.size());
+
+        compute_level = group[0].schedule().compute_level();
+        store_level = group[0].schedule().store_level();
+        internal_assert(!compute_level.is_inline());
+
+        /*// Sort the fused-pairs starting based on the realization order (first to last).
+        for (Function &func : group) {
+            vector<FusedPair> &fused_pairs = func.definition().schedule().fused_pairs();
+
+            std::sort(fused_pairs.begin(), fused_pairs.end(),
+                [&](const FusedPair &lhs, const FusedPair &rhs){
+                    const auto iter_lhs = std::find(order.begin(), order.end(), lhs.func_2);
+                    const auto iter_rhs = std::find(order.begin(), order.end(), rhs.func_2);
+                    if (iter_lhs == iter_rhs) {
+                        return lhs.stage_2 < rhs.stage_2;
+                    }
+                    return iter_lhs < iter_rhs;
+                }
+            );
+        }
+
+        debug(0) << "\n";
+        for (const Function &func : group) {
+            const vector<FusedPair> &fused_pairs = func.definition().schedule().fused_pairs();
+
+            debug(0) << "Fused pairs of Func " << func.name() << "\n";
+
+            for (const auto &p : fused_pairs) {
+                debug(0) << "   Func " << p.func_1 << ".s" << p.stage_1 << " computed before"
+                         << " Func " << p.func_2 << ".s" << p.stage_2 << " at Var " << p.var_name << "\n";
+            }
+        }*/
+    }
+
+private:
+
+    Stmt build_pipeline_group(Stmt s) {
+        vector<bool> skip(group.size(), true);
+        for (size_t i = 0; i < group.size(); ++i) {
+            if (function_is_used_in_stmt(group[i], s) || is_output_list[i]) {
+                skip[i] = false;
+            }
+        }
+
+        // Add the consumer nodes
+        Stmt consume = s;
+        for (size_t i = group.size(); i > 0; --i) {
+            consume = ProducerConsumer::make(group[i-1].name(), false, consume);
+        }
+
+        // Build the loops
+        Stmt produce = s;
+        for (size_t i = 0; i < group.size(); ++i) {
+            if (!skip[i]) {
+                //TODO(psuriana): should add the loopness one by one
+                produce = Block::make(build_pipeline(group[i]), produce);
+            }
+        }
+
+        // Add the producer nodes
+        for (size_t i = group.size(); i > 0; --i) {
+            produce = ProducerConsumer::make(group[i-1].name(), true, produce);
+        }
+
+        return Block::make(produce, consume);
+    }
+
+    Stmt build_pipeline(Function func) {
+        pair<Stmt, Stmt> realization = build_production(func);
+
+        Stmt producer;
+        if (realization.first.defined() && realization.second.defined()) {
+            producer = Block::make(realization.first, realization.second);
+        } else if (realization.first.defined()) {
+            producer = realization.first;
+        } else {
+            internal_assert(realization.second.defined());
+            producer = realization.second;
+        }
+        return producer;
+    }
+
+    Stmt build_realize_group(Stmt s) {
+        for (size_t i = group.size(); i > 0; --i) {
+            if (function_is_used_in_stmt(group[i-1], s) || is_output_list[i-1]) {
+                s = build_realize(s, group[i-1], is_output_list[i-1]);
+            }
+        }
+        return s;
+    }
+
+    Stmt build_realize(Stmt s, Function func, bool is_output) {
+        if (!is_output) {
+            Region bounds;
+            string name = func.name();
+            const vector<string> func_args = func.args();
+            for (int i = 0; i < func.dimensions(); i++) {
+                const string &arg = func_args[i];
+                Expr min = Variable::make(Int(32), name + "." + arg + ".min_realized");
+                Expr extent = Variable::make(Int(32), name + "." + arg + ".extent_realized");
+                bounds.push_back(Range(min, extent));
+            }
+
+            s = Realize::make(name, func.output_types(), bounds, const_true(), s);
+        }
+
+        // This is also the point at which we inject explicit bounds
+        // for this realization.
+        if (target.has_feature(Target::NoAsserts)) {
+            return s;
+        } else {
+            return inject_explicit_bounds(s, func);
+        }
+    }
+
+    using IRMutator::visit;
+
+    void visit(const For *for_loop) {
+        debug(3) << "InjectGroupRealization of " << group << " entering for loop over " << for_loop->name << "\n";
+
+        Stmt body = for_loop->body;
+
+        // Dig through any let statements
+        vector<pair<string, Expr>> lets;
+        while (const LetStmt *l = body.as<LetStmt>()) {
+            lets.push_back(make_pair(l->name, l->value));
+            body = l->body;
+        }
+
+        body = mutate(body);
+
+        if (compute_level.match(for_loop->name)) {
+            debug(3) << "Found compute level\n";
+            body = build_pipeline_group(body);
+            found_compute_level = true;
+        }
+
+        if (store_level.match(for_loop->name)) {
+            debug(3) << "Found store level\n";
+            internal_assert(found_compute_level)
+                << "The compute loop level was not found within the store loop level!\n";
+            body = build_realize_group(body);
+            found_store_level = true;
+        }
+
+        // Reinstate the let statements
+        for (size_t i = lets.size(); i > 0; i--) {
+            body = LetStmt::make(lets[i - 1].first, lets[i - 1].second, body);
+        }
+
+        if (body.same_as(for_loop->body)) {
+            stmt = for_loop;
+        } else {
+            stmt = For::make(for_loop->name,
+                             for_loop->min,
+                             for_loop->extent,
+                             for_loop->for_type,
+                             for_loop->device_api,
+                             body);
         }
     }
 };
@@ -1142,6 +1313,82 @@ void validate_schedule(Function f, Stmt s, const Target &target, bool is_output,
     }
 }
 
+void validate_fused_group_schedule_helper(const string &fn, size_t stage,
+                                          const Definition &def_1,
+                                          const map<string, Function> &env) {
+    for (const auto &p : def_1.schedule().fused_pairs()) {
+        internal_assert((fn == p.func_1) && (stage == p.stage_1));
+
+        const Function &func_1 = env.find(p.func_1)->second;
+        const Function &func_2 = env.find(p.func_2)->second;
+        const Definition &def_2 = (p.stage_2 == 0) ? func_2.definition() : func_2.update(p.stage_2 - 1);
+
+        // Verify that the functions being computed with are not scheduled inline.
+        user_assert(!func_1.definition().schedule().compute_level().is_inline())
+            << "Invalid compute_with: " << p.func_1 << ".s" << p.stage_1
+            << " is scheduled inline.\n";
+        user_assert(!func_2.definition().schedule().compute_level().is_inline())
+            << "Invalid compute_with: " << p.func_2 << ".s" << p.stage_2
+            << " is scheduled inline.\n";
+
+        // Verify that the functions being computed with does not have extern definitions.
+        user_assert(!func_1.has_extern_definition())
+            << "Invalid compute_with: " << p.func_1 << ".s" << p.stage_1
+            << " has extern definition.\n";
+        user_assert(!func_2.has_extern_definition())
+            << "Invalid compute_with: " << p.func_2 << ".s" << p.stage_2
+            << " has extern definition.\n";
+
+        // Verify that their dimensions up to "var_name" are the same.
+        const vector<Dim> &dims_1 = def_1.schedule().dims();
+        const vector<Dim> &dims_2 = def_2.schedule().dims();
+
+        int var_index = -1;
+        for (size_t i = 0; (i < std::min(dims_1.size(), dims_2.size())) && (var_index == -1); ++i) {
+            if (dims_1[i].var == dims_2[i].var) {
+                var_index = i;
+            }
+            if (dims_1[i] != dims_2[i]) {
+                user_error << "Invalid compute_with: dims " << i << " of " << p.func_1 << ".s"
+                           << p.stage_1 << " and " << p.func_2 << ".s" << p.stage_2
+                           << " do not match.\n";
+            }
+        }
+        // Theoretically, this should never happen.
+        user_assert(var_index != -1) << "Cannot find dimension " << p.var_name << " of "
+                                     << p.func_2 << ".s" << p.stage_2 << " computed with "
+                                     << p.func_1 << ".s" << p.stage_1 << "\n";
+
+        // Verify that they are computed at the same loop level.
+        user_assert((p.func_1 == p.func_2) ||
+                    (func_1.definition().schedule().compute_level() ==
+                     func_2.definition().schedule().compute_level()))
+            << "Invalid compute_with: the compute levels of " << p.func_1 << ".s" << p.stage_1
+            << " (computed at " << func_1.definition().schedule().compute_level().to_string()
+            << ") and " << p.func_2 << ".s" << p.stage_2 << " ("
+            << func_2.definition().schedule().compute_level().to_string() << ") do not match.\n";
+    }
+}
+
+void validate_fused_groups_schedule(const vector<vector<string>> &fused_groups,
+                                   const map<string, Function> &env) {
+    // Assert that the dimensions and compute level of functions within a fuse
+    // group from outermost loop to the innermost fused loop match exactly.
+    for (const vector<string> &group : fused_groups) {
+        for (const auto &fn : group) {
+            const auto iter = env.find(fn);
+            internal_assert(iter != env.end());
+
+            validate_fused_group_schedule_helper(
+                iter->first, 0, iter->second.definition(), env);
+            for (size_t i = 0; i < iter->second.updates().size(); ++i) {
+                validate_fused_group_schedule_helper(
+                    iter->first, i + 1, iter->second.updates()[i], env);
+            }
+        }
+    }
+}
+
 class RemoveLoopsOverOutermost : public IRMutator {
     using IRMutator::visit;
 
@@ -1168,20 +1415,74 @@ class RemoveLoopsOverOutermost : public IRMutator {
 
 Stmt schedule_functions(const vector<Function> &outputs,
                         const vector<string> &order,
-                        const vector<vector<string>> &fuse_group,
+                        const vector<vector<string>> &fused_groups,
                         const map<string, Function> &env,
                         const Target &target,
                         bool &any_memoized) {
+
+    // Assert that the fused group is sorted based on the realization order
+    auto iter = order.begin();
+    for (const vector<string> &group : fused_groups) {
+        internal_assert(!group.empty());
+        for (const string &fn : group) {
+            internal_assert(iter != order.end());
+            internal_assert(*iter == fn);
+            iter++;
+        }
+    }
+    internal_assert(iter == order.end());
 
     string root_var = LoopLevel::root().to_string();
     Stmt s = For::make(root_var, 0, 1, ForType::Serial, DeviceAPI::Host, Evaluate::make(0));
 
     any_memoized = false;
 
-    //TODO(psuriana): Assert the dimensions/schedules of functions within a group
-    // from outermost to 'var' match exactly.
+    validate_fused_groups_schedule(fused_groups, env);
 
-    for (size_t i = order.size(); i > 0; i--) {
+    for (size_t i = fused_groups.size(); i > 0; --i) {
+        const vector<string> &group = fused_groups[i-1];
+        vector<Function> funcs(group.size());
+        vector<bool> is_output_list(group.size(), false);
+        for (size_t j = group.size(); j > 0; --j) {
+            funcs[j-1] = env.find(group[j-1])->second;
+
+            for (Function o : outputs) {
+                is_output_list[j-1] = is_output_list[j-1] | o.same_as(funcs[j-1]);
+            }
+            //TODO(psuriana): find the best place to put this
+            //validate_schedule(funcs[j-1], s, target, is_output_list[j-1], env);
+            any_memoized = any_memoized || funcs[j-1].schedule().memoized();
+        }
+
+        /*debug(0) << "GROUP " << i << "\n";
+        for (size_t j = 0; j < group.size(); ++j) {
+            debug(0) << "...Func " << funcs[j].name() << ", is output? " << is_output_list[j] << "\n";
+        }
+        debug(0) << "\n";*/
+
+        if (group.size() == 1) {
+            // 1 member only -> no loop fusion
+            if (funcs[0].can_be_inlined() &&
+                funcs[0].schedule().compute_level().is_inline()) {
+                debug(1) << "Inlining " << funcs[0].name() << '\n';
+                s = inline_function(s, funcs[0]);
+            } else {
+                debug(1) << "Injecting realization of " << funcs[0].name() << '\n';
+                InjectRealization injector(funcs[0], is_output_list[0], target);
+                s = injector.mutate(s);
+                internal_assert(injector.found_store_level && injector.found_compute_level);
+            }
+        } else {
+            //TODO(psuriana): Inject the realization of loop-fusion group
+            InjectGroupRealization injector(funcs, is_output_list, target, order);
+            s = injector.mutate(s);
+            internal_assert(injector.found_store_level && injector.found_compute_level);
+        }
+
+        debug(2) << s << '\n';
+    }
+
+    /*for (size_t i = order.size(); i > 0; i--) {
         Function f = env.find(order[i-1])->second;
 
         bool is_output = false;
@@ -1191,19 +1492,21 @@ Stmt schedule_functions(const vector<Function> &outputs,
 
         validate_schedule(f, s, target, is_output, env);
 
+        debug(0) << "\n******************\n";
         if (f.can_be_inlined() &&
             f.schedule().compute_level().is_inline()) {
-            debug(1) << "Inlining " << order[i-1] << '\n';
+            debug(0) << "Inlining " << order[i-1] << '\n';
             s = inline_function(s, f);
         } else {
-            debug(1) << "Injecting realization of " << order[i-1] << '\n';
+            debug(0) << "Injecting realization of " << order[i-1] << '\n';
             InjectRealization injector(f, is_output, target);
             s = injector.mutate(s);
             internal_assert(injector.found_store_level && injector.found_compute_level);
         }
         any_memoized = any_memoized || f.schedule().memoized();
-        debug(2) << s << '\n';
-    }
+        debug(0) << "\nFinal:\n";
+        debug(0) << s << '\n';
+    }*/
 
     // We can remove the loop over root now
     const For *root_loop = s.as<For>();
