@@ -93,7 +93,7 @@ void realization_order_dfs(string current,
     order.push_back(current);
 }
 
-void find_fuse_group_dfs(string current,
+void find_fused_groups_dfs(string current,
                          const map<string, set<string>> &fuse_adjacency_list,
                          set<string> &visited,
                          vector<string> &group) {
@@ -105,33 +105,35 @@ void find_fuse_group_dfs(string current,
 
     for (const string &fn : iter->second) {
         if (visited.find(fn) == visited.end()) {
-            find_fuse_group_dfs(fn, fuse_adjacency_list, visited, group);
+            find_fused_groups_dfs(fn, fuse_adjacency_list, visited, group);
         }
     }
 }
 
-vector<vector<string>> find_fuse_group(const vector<string> &order,
-                                       const map<string, set<string>> &fuse_adjacency_list) {
+vector<vector<string>> find_fused_groups(const vector<string> &order,
+                                        const map<string, set<string>> &fuse_adjacency_list) {
     set<string> visited;
     vector<vector<string>> result;
 
     for (const auto &fn : order) {
         if (visited.find(fn) == visited.end()) {
             vector<string> group;
-            find_fuse_group_dfs(fn, fuse_adjacency_list, visited, group);
+            find_fused_groups_dfs(fn, fuse_adjacency_list, visited, group);
             result.push_back(std::move(group));
         }
     }
     return result;
 }
 
-void collect_fused_pairs(const map<string, Function> &env,
+void collect_fused_pairs(const string &fn, size_t stage,
+                         const map<string, Function> &env,
                          const map<string, map<string, Function>> &indirect_calls,
                          const vector<FusedPair> &pairs,
                          vector<FusedPair> &func_fused_pairs,
                          map<string, set<string>> &graph,
                          map<string, set<string>> &fuse_adjacency_list) {
     for (const auto &p : pairs) {
+        internal_assert((p.func_1 == fn) && (p.stage_1 == stage));
 
         if (env.find(p.func_2) == env.end()) {
             // Since func_2 is not being called by anyone, might as well skip this fused pair.
@@ -191,13 +193,13 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         indirect_calls.emplace(caller.first, std::move(more_funcs));
     }
 
-    debug(0) << "\n";
+    /*debug(0) << "\n";
     for (const auto &it1 : indirect_calls) {
         debug(0) << "Function calls by: " <<  it1.first << "\n";
         for (const auto &it2 : it1.second) {
             debug(0) << "  " << it2.first << "\n";
         }
-    }
+    }*/
 
     // Make a DAG representing the pipeline. Each function maps to the
     // set describing its inputs.
@@ -219,10 +221,13 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         // definitions as well since compute_with is defined per definition.
         vector<FusedPair> &func_fused_pairs = fused_pairs_graph[caller.first];
         fuse_adjacency_list[caller.first]; // Make sure every Func in 'env' is allocated a slot
-        collect_fused_pairs(env, indirect_calls, caller.second.definition().schedule().fused_pairs(),
-            func_fused_pairs, graph, fuse_adjacency_list);
-        for (const Definition &def : caller.second.updates()) {
-            collect_fused_pairs(env, indirect_calls, def.schedule().fused_pairs(),
+        collect_fused_pairs(caller.first, 0, env, indirect_calls,
+                            caller.second.definition().schedule().fused_pairs(),
+                            func_fused_pairs, graph, fuse_adjacency_list);
+
+        for (size_t i = 0; i < caller.second.updates().size(); ++i) {
+            const Definition &def = caller.second.updates()[i];
+            collect_fused_pairs(caller.first, i + 1, env, indirect_calls, def.schedule().fused_pairs(),
                 func_fused_pairs, graph, fuse_adjacency_list);
         }
     }
@@ -236,7 +241,7 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         }
     }
 
-    debug(0) << "\n";
+    /*debug(0) << "\n";
     for (const auto &i : graph) {
         debug(0) << "Callees of Func " << i.first << "\n";
         for (const auto &callee : i.second) {
@@ -252,7 +257,7 @@ pair<vector<string>, vector<vector<string>>> realization_order(
             debug(0) << fn << ", ";
         }
         debug(0) << "\n";
-    }
+    }*/
 
     // Make sure we don't have cyclic compute_with: if Func f is computed after
     // Func g, Func g should not be computed after Func f.
@@ -291,19 +296,19 @@ pair<vector<string>, vector<vector<string>>> realization_order(
     }
     debug(0) << "\n";
 
-    vector<vector<string>> fuse_group = find_fuse_group(order, fuse_adjacency_list);
+    vector<vector<string>> fused_groups = find_fused_groups(order, fuse_adjacency_list);
 
-    debug(0) << "\nBEFORE SORT\n";
-    for (const auto &group : fuse_group) {
+    /*debug(0) << "\nBEFORE SORT\n";
+    for (const auto &group : fused_groups) {
         debug(0) << "Fused group: " << "\n";
         for (const auto &fn : group) {
             debug(0) << fn << ", ";
         }
         debug(0) << "\n";
-    }
+    }*/
 
-    // Sort the fused group based on the realization order
-    for (auto &group : fuse_group) {
+    // Sort the fused group (and their fused-pair list) based on the realization order
+    for (auto &group : fused_groups) {
         std::sort(group.begin(), group.end(),
             [&](const string &lhs, const string &rhs){
                 const auto iter_lhs = std::find(order.begin(), order.end(), lhs);
@@ -314,7 +319,7 @@ pair<vector<string>, vector<vector<string>>> realization_order(
     }
 
     debug(0) << "\nAFTER SORT\n";
-    for (const auto &group : fuse_group) {
+    for (const auto &group : fused_groups) {
         debug(0) << "Fused group: " << "\n";
         for (const auto &fn : group) {
             debug(0) << fn << ", ";
@@ -322,7 +327,7 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         debug(0) << "\n";
     }
 
-    return std::make_pair(order, fuse_group);
+    return std::make_pair(order, fused_groups);
 }
 
 }

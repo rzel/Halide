@@ -81,8 +81,8 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
 
     // Compute a realization order
     vector<string> order;
-    vector<vector<string>> fuse_group;
-    std::tie(order, fuse_group) = realization_order(outputs, env);
+    vector<vector<string>> fused_groups;
+    std::tie(order, fused_groups) = realization_order(outputs, env);
 
     // Try to simplify the RHS/LHS of a function definition by propagating its
     // specializations' conditions
@@ -91,7 +91,7 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
     bool any_memoized = false;
 
     debug(1) << "Creating initial loop nests...\n";
-    Stmt s = schedule_functions(outputs, order, fuse_group, env, t, any_memoized);
+    Stmt s = schedule_functions(outputs, order, fused_groups, env, t, any_memoized);
     debug(2) << "Lowering after creating initial loop nests:\n" << s << '\n';
 
     if (any_memoized) {

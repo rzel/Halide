@@ -73,16 +73,25 @@ bool LoopLevel::match(const std::string &loop) const {
 bool LoopLevel::match(const LoopLevel &other) const {
     // Must compare by name, not by pointer, since in() can make copies
     // that we need to consider equivalent
-    return (func_name() == other.func_name() &&
-            (var_name == other.var_name ||
-             Internal::ends_with(var_name, "." + other.var_name) ||
-             Internal::ends_with(other.var_name, "." + var_name)));
+    if (stage_index == -1) {
+        return (func_name() == other.func_name() &&
+                (var_name == other.var_name ||
+                 Internal::ends_with(var_name, "." + other.var_name) ||
+                 Internal::ends_with(other.var_name, "." + var_name)) &&
+                (stage_index == other.stage_index));
+    } else {
+        return (func_name() == other.func_name() &&
+                (var_name == other.var_name ||
+                 Internal::ends_with(var_name, "." + other.var_name) ||
+                 Internal::ends_with(other.var_name, "." + var_name)));
+    }
 }
 
 bool LoopLevel::operator==(const LoopLevel &other) const {
     // Must compare by name, not by pointer, since in() can make copies
     // that we need to consider equivalent
-    return func_name() == other.func_name() && var_name == other.var_name;
+    return (func_name() == other.func_name()) && (stage_index == other.stage_index) &&
+           (var_name == other.var_name) && (is_rvar == other.is_rvar);
 }
 
 namespace Internal {
