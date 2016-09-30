@@ -49,6 +49,8 @@ class ConvertSelfRef : public IRMutator {
             if (op->value_index != value_index) {
                 debug(4) << "Self-reference of " << op->name
                          << " with different index. Cannot prove associativity\n";
+                is_solvable = false;
+                return;
             } else if (is_conditional && (op->value_index == value_index)) {
                 debug(4) << "Self-reference of " << op->name
                          << " inside a conditional. Operation is not associative\n";

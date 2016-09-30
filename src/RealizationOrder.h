@@ -21,8 +21,8 @@ class Function;
  * order in which stages are computed when there's no strict
  * dependency between them. Currently just some arbitrary depth-first
  * traversal of the call graph. */
-std::vector<std::string> realization_order(const std::vector<Function> &output,
-                                           const std::map<std::string, Function> &env);
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> realization_order(
+	const std::vector<Function> &output, const std::map<std::string, Function> &env);
 
 }
 }

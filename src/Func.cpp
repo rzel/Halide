@@ -1439,9 +1439,9 @@ Stage &Stage::hexagon(VarOrRVar x) {
 Stage &Stage::compute_with(LoopLevel loop_level) {
     user_assert(!loop_level.is_inline() && !loop_level.is_root())
         << "Undefined loop level to compute with\n";
-    user_assert((loop_level.func().name() != func.name()) || (loop_level.stage() < (int)stage))
+    user_assert((loop_level.func().name() != func.name()) || (loop_level.stage() == (int)stage-1))
         << "Cannot schedule " << name() << " to be computed with " << loop_level.to_string()
-        << ". Stage of a func has to be computed AFTER its previous stages\n";
+        << ". Can only schedule an update to be computed with its immediate previous stage\n";
 
     debug(0) << "compute_with " << name() << " at " << loop_level.to_string() << "\n";
     // We have to mark the fuse level on the "original" definition (the one

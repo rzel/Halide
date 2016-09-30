@@ -3,6 +3,8 @@
 #include "RealizationOrder.h"
 #include "FindCalls.h"
 #include "Func.h"
+#include "IRVisitor.h"
+#include "IREquality.h"
 
 namespace Halide {
 namespace Internal {
@@ -12,6 +14,60 @@ using std::map;
 using std::set;
 using std::vector;
 using std::pair;
+
+namespace {
+
+class CheckLoopCarriedDependence : public IRVisitor {
+private:
+    const string &func;
+    const vector<Expr> &prev_args;
+
+    using IRVisitor::visit;
+
+    void visit(const Call *op) {
+        if ((op->call_type == Call::Halide) && (func == op->name)) {
+            internal_assert(!op->func.defined())
+                << "Func should not have been defined for a self-reference\n";
+            internal_assert(prev_args.size() == op->args.size())
+                << "Self-reference should have the same number of args as the original\n";
+            for (size_t i = 0; i < op->args.size(); i++) {
+                if (!equal(op->args[i], prev_args[i])) {
+                    debug(4) << "Self-reference of " << op->name << " with different args "
+                             << "from the LHS. Encounter loop-carried dependence.\n";
+                    result = false;
+                    return;
+                }
+            }
+        }
+    }
+
+public:
+    bool result;
+
+    CheckLoopCarriedDependence(const string &f, const vector<Expr> &prev_args)
+        : func(f), prev_args(prev_args), result(true) {}
+};
+
+// Check to see if there is a loop-carried dependence in a 'func' update definition
+// with the previous definition it's computed with.
+bool has_loop_carried_dependence(const string &func, const vector<Expr> &prev_args,
+                                 const Definition &update) {
+    internal_assert(prev_args.size() == update.args().size());
+    for (size_t i = 0; i < prev_args.size(); ++i) {
+        if (!equal(prev_args[i], update.args()[i])) {
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < update.values().size(); ++i) {
+        CheckLoopCarriedDependence c(func, prev_args);
+        update.values()[i].accept(&c);
+        if (c.result) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void realization_order_dfs(string current,
                            const map<string, set<string>> &graph,
@@ -76,6 +132,7 @@ void collect_fused_pairs(const map<string, Function> &env,
                          map<string, set<string>> &graph,
                          map<string, set<string>> &fuse_adjacency_list) {
     for (const auto &p : pairs) {
+
         if (env.find(p.func_2) == env.end()) {
             // Since func_2 is not being called by anyone, might as well skip this fused pair.
             continue;
@@ -87,8 +144,9 @@ void collect_fused_pairs(const map<string, Function> &env,
              << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
 
         // Assert no dependencies among the functions that are computed_with.
-        // Self-dependecy is allowed in update stages.
-        // TODO(psuriana): CANNOT LOOP IF THERE IS LOOP-CARRY DEPENDENCY
+        // Self-dependecy is allowed in if and only if there is no loop-carried
+        // dependence, e.g. f(x, y) = f(x, y) + 2 is okay but
+        // f(x, y) = f(x, y - 1) + 2 is not.
         if (p.func_1 != p.func_2) {
             const auto &callees_1 = indirect_calls.find(p.func_1);
             if (callees_1 != indirect_calls.end()) {
@@ -102,9 +160,16 @@ void collect_fused_pairs(const map<string, Function> &env,
                     << "Invalid compute_with: there is dependency between "
                     << p.func_1 << " and " << p.func_2 << "\n";
             }
+        } else {
+            internal_assert(p.stage_2 > 0) << "Should have been an update definition\n";
+            const Function &func = env.find(p.func_2)->second;
+            const vector<Expr> prev_args = (p.stage_1 == 0) ? func.definition().args() : func.update(p.stage_1-1).args();
+            const Definition &update = func.update(p.stage_2-1);
+            bool loop_carried = has_loop_carried_dependence(p.func_1, prev_args, update);
+            user_assert(loop_carried) << "Invalid compute_with: there is loop-carried "
+                << "dependence between " << p.func_1 << ".s" << p.stage_1 << " and "
+                << p.func_2 << ".s" << p.stage_2 << "\n";
         }
-
-        //TODO(psuriana): Assert their dimensions/schedules from outermost to 'var' match exactly.
 
         fuse_adjacency_list[p.func_1].insert(p.func_2);
         fuse_adjacency_list[p.func_2].insert(p.func_1);
@@ -114,8 +179,10 @@ void collect_fused_pairs(const map<string, Function> &env,
     }
 }
 
-vector<string> realization_order(const vector<Function> &outputs,
-                                 const map<string, Function> &env) {
+} // anonymous namespace
+
+pair<vector<string>, vector<vector<string>>> realization_order(
+        const vector<Function> &outputs, const map<string, Function> &env) {
 
     // Collect all indirect calls made by all the functions in "env".
     map<string, map<string, Function>> indirect_calls;
@@ -255,7 +322,7 @@ vector<string> realization_order(const vector<Function> &outputs,
         debug(0) << "\n";
     }
 
-    return order;
+    return std::make_pair(order, fuse_group);
 }
 
 }
