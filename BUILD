@@ -274,3 +274,12 @@ cc_binary(
         "util/inconsolata.h",
     ],
 )
+
+# TODO: should this be moved to a BUILD file in src/runtime?
+cc_library(
+    name = "mini_opengl",
+    hdrs = ["src/runtime/mini_opengl.h"],
+    visibility = ["//test:__subpackages__"],
+    includes = ["src/runtime"],
+    testonly = 1
+)

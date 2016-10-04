@@ -11,8 +11,10 @@ int main() {
 #include <stdlib.h>
 #include <stddef.h>
 #include <cstring>
-#include "../src/runtime/mini_opengl.h"
+
 #include "Halide.h"
+
+#include "mini_opengl.h"
 
 extern "C" void glGenTextures(GLsizei, GLuint *);
 extern "C" void glTexParameteri(GLenum, GLenum, GLint);
@@ -225,7 +227,7 @@ class KnownState
 
     public:
 
-    bool errors;
+    bool errors{false};
 
 
     // This sets most values to generated or arbitrary values, which the

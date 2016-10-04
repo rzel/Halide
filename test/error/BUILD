@@ -1,15 +1,11 @@
-load("@//:halide.bzl", "halide_language_copts")
+load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
+load("//test/common:cc_failure_test.bzl", "cc_failure_test")
 
-[cc_binary(
-    name = "error_%s" % test[0:-4],
+[cc_failure_test(
+    name = "%s" % test[0:-4],
     srcs = [test],
     deps = ["//:language"],
-    copts = halide_language_copts()
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts()
 ) for test in glob(["*.cpp"])]
 
-[sh_test(
-    name = test[0:-4],
-    srcs = ["expect_failure.sh"],
-    args = ["$(location :error_%s)" % test[0:-4]],
-    data = [":error_%s" % test[0:-4]],
-) for test in glob(["*.cpp"])]

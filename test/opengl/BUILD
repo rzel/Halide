@@ -3,8 +3,12 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
 [cc_test(
     name = test[0:-4],
     srcs = [test],
-    deps = ["//:language"] +
-           (["//test/common:gpu_object_lifetime"] if "gpu_object_lifetime" in test else []),
+    deps = [
+        "//:mini_opengl",
+        "//:language"
+    ],
     copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
+    linkopts = halide_language_linkopts() + 
+        # ["-lGL"],
+        ["-framework OpenGL"],  # TODO
 ) for test in glob(["*.cpp"])]
