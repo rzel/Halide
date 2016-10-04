@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
         bilateral_grid.compute_root().parallel(y).vectorize(x, 8);
     }
 
-    std::string path(argc > 2 ? argv[2] : "");
-    bilateral_grid.compile_to_static_library(path + "bilateral_grid", {r_sigma, input}, target);
+    std::string dir(argc > 2 ? argv[2] : "");
+    bilateral_grid.compile_to_static_library(dir + "bilateral_grid", {r_sigma, input}, "bilateral_grid", target);
 
     return 0;
 }

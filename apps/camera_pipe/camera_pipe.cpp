@@ -359,9 +359,9 @@ int main(int argc, char **argv) {
     std::vector<Argument> args = {color_temp, gamma, contrast, blackLevel, whiteLevel,
                                   input, matrix_3200, matrix_7000};
     // TODO: it would be more efficient to call compile_to() a single time with the right arguments
-    std::string path(argc > 2 ? argv[2] : "");
-    processed.compile_to_static_library(path + "camera_pipe", args, target);
-    processed.compile_to_assembly(path + "camera_pipe.s", args, target);
+    std::string dir(argc > 2 ? argv[2] : "");
+    processed.compile_to_static_library(dir + "camera_pipe", args, "curved", target);
+    processed.compile_to_assembly(dir + "camera_pipe.s", args, "curved", target);
 
     return 0;
 }

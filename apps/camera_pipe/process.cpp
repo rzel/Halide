@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     double best;
 
     best = benchmark(timing_iterations, 1, [&]() {
-        camera_pipe(color_temp, gamma, contrast, blackLevel, whiteLevel,
+        curved(color_temp, gamma, contrast, blackLevel, whiteLevel,
                input, matrix_3200, matrix_7000,
                output);
     });
