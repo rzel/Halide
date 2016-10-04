@@ -345,6 +345,7 @@ int main(int argc, char **argv) {
 
     // Parameterized output type, because LLVM PTX (GPU) backend does not
     // currently allow 8-bit computations
+    assert(argc > 0);
     int bit_width = atoi(argv[1]);
     Type result_type = UInt(bit_width);
 
@@ -358,8 +359,9 @@ int main(int argc, char **argv) {
     std::vector<Argument> args = {color_temp, gamma, contrast, blackLevel, whiteLevel,
                                   input, matrix_3200, matrix_7000};
     // TODO: it would be more efficient to call compile_to() a single time with the right arguments
-    processed.compile_to_static_library("curved", args, target);
-    processed.compile_to_assembly("curved.s", args, target);
+    std::string path(argc > 2 ? argv[2] : "");
+    processed.compile_to_static_library(path + "camera_pipe", args, target);
+    processed.compile_to_assembly(path + "camera_pipe.s", args, target);
 
     return 0;
 }

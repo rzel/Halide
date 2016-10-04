@@ -2,7 +2,7 @@
 #include "fcam/Demosaic_ARM.h"
 
 #include "benchmark.h"
-#include "curved.h"
+#include "camera_pipe.h"
 #include "HalideBuffer.h"
 #include "halide_image_io.h"
 #include "halide_malloc_trace.h"
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     double best;
 
     best = benchmark(timing_iterations, 1, [&]() {
-        curved(color_temp, gamma, contrast, blackLevel, whiteLevel,
+        camera_pipe(color_temp, gamma, contrast, blackLevel, whiteLevel,
                input, matrix_3200, matrix_7000,
                output);
     });

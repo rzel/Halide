@@ -15,7 +15,8 @@ int main(int argc, char **argv) {
     blur_y.split(y, y, yi, 8).parallel(y).vectorize(x, 8);
     blur_x.store_at(blur_y, y).compute_at(blur_y, yi).vectorize(x, 8);
 
-    blur_y.compile_to_static_library("halide_blur", {input});
+    std::string path(argc > 1 ? argv[1] : "");
+    blur_y.compile_to_static_library(path + "halide_blur", {input});
 
     return 0;
 }

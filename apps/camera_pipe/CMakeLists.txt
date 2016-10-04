@@ -1,8 +1,8 @@
 # Generator
 halide_project(camera_pipe "apps" camera_pipe.cpp)
 
-set(curved_h "${CMAKE_CURRENT_BINARY_DIR}/curved.h")
-set(curved_lib "${CMAKE_CURRENT_BINARY_DIR}/curved${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(camera_pipe_h "${CMAKE_CURRENT_BINARY_DIR}/camera_pipe.h")
+set(camera_pipe_lib "${CMAKE_CURRENT_BINARY_DIR}/camera_pipe${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # FIXME: Set -O3 here
 add_library(fcam fcam/Demosaic.cpp fcam/Demosaic_ARM.cpp)
@@ -15,8 +15,8 @@ if (NOT MSVC)
 endif()
 
 # Final executable
-add_executable(process process.cpp ${curved_h})
-target_link_libraries(process PRIVATE ${curved_lib} fcam ${PNG_LIBRARIES})
+add_executable(process process.cpp ${camera_pipe_h})
+target_link_libraries(process PRIVATE ${camera_pipe_lib} fcam ${PNG_LIBRARIES})
 target_include_directories(process PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
                            ${PNG_INCLUDE_DIRS})
 target_compile_definitions(process PRIVATE ${PNG_DEFINITIONS})
@@ -28,7 +28,7 @@ if (NOT MSVC)
 endif()
 
 # FIXME: Cannot use halide_add_generator_dependency()
-add_custom_command(OUTPUT "${curved_h}" "${curved_lib}"
+add_custom_command(OUTPUT "${camera_pipe_h}" "${camera_pipe_lib}"
                    COMMAND camera_pipe 8 0
                    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-                   COMMENT "Generating curved header and object file")
+                   COMMENT "Generating camera_pipe header and object file")

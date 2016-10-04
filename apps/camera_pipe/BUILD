@@ -1,0 +1,36 @@
+load("//apps/support:simple_gen.bzl", "simple_gen")
+
+simple_gen(
+    name = "camera_pipe",
+    srcs = ["camera_pipe.cpp"],
+    args = ["8"]
+)
+
+cc_test(
+    name = "process",
+    srcs = [
+        "process.cpp",
+        "fcam/Demosaic.cpp",
+        "fcam/Demosaic.h",
+        "fcam/Demosaic_ARM.cpp",
+        "fcam/Demosaic_ARM.h",
+    ],
+    deps = [
+        ":camera_pipe", 
+        "//apps/support:benchmark",
+        "//:runtime",
+        "//tools:halide_image_io",
+    ],
+)
+
+TIMING_ITERATIONS = 5
+
+genrule(
+    name = "gen_out_png",
+    srcs = ["//apps/images:bayer_raw.png"],
+    tools = [":process"],
+    outs = ["out.png"],
+    cmd = "$(location :process) $(location //apps/images:bayer_raw.png) 3700 2.0 50 %d $@" % TIMING_ITERATIONS
+)
+
+# TODO: wire up viz.sh to the relevant rules

@@ -76,9 +76,10 @@ int main(int argc, char **argv) {
     Target t = get_host_target();
     t.set_feature(Target::CPlusPlusMangling);
 
-    f.compile_to_header("pipeline_cpp_native.h", args, "pipeline_cpp_native", t);
-    f.compile_to_header("pipeline_cpp_cpp.h", args, "pipeline_cpp_cpp", t);
-    f.compile_to_object("pipeline_cpp_native.o", args, "pipeline_cpp_native", t);
-    f.compile_to_c("pipeline_cpp_cpp.cpp", args, "pipeline_cpp_cpp", t);
+    std::string path(argc > 1 ? argv[1] : "");
+    f.compile_to_header(path + "pipeline_cpp_native.h", args, "pipeline_cpp_native", t);
+    f.compile_to_header(path + "pipeline_cpp_cpp.h", args, "pipeline_cpp_cpp", t);
+    f.compile_to_object(path + "pipeline_cpp_native.o", args, "pipeline_cpp_native", t);
+    f.compile_to_c(path + "pipeline_cpp_cpp.cpp", args, "pipeline_cpp_cpp", t);
     return 0;
 }

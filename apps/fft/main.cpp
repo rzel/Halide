@@ -42,6 +42,7 @@ int main(int argc, char **argv) {
         W = atoi(argv[1]);
         H = atoi(argv[2]);
     }
+    printf("W=%d H=%d\n",W,H);
 
     // Generate a random image to convolve with.
     Image<float> in(W, H);
