@@ -33,6 +33,14 @@ struct Container {
     string name;
     Expr value;
 };
+
+bool var_name_match(string candidate, string var) {
+    internal_assert(var.find('.') == string::npos)
+        << "var_name_match expects unqualified names for the second argument. "
+        << "Name passed: " << var << "\n";
+    if (candidate == var) return true;
+    return Internal::ends_with(candidate, "." + var);
+}
 }
 
 class ContainsImpureCall : public IRVisitor {
@@ -60,14 +68,13 @@ bool contains_impure_call(const Expr &expr) {
 // Build a loop nest about a provide node using a schedule
 Stmt build_provide_loop_nest_helper(string func_name,
                                     string prefix,
-                                    const vector<string> &dims,
+                                    int start_fuse, // Fuse the dims starting from start_fuse to outermost (if not -1)
+                                    const vector<string> &dims, // The dims of the initial definition
                                     const vector<Expr> &site,
                                     const vector<Expr> &values,
                                     const vector<Expr> &predicates,
                                     const Schedule &s,
                                     bool is_update) {
-
-
     // We'll build it from inside out, starting from a store node,
     // then wrapping it in for loops.
 
@@ -248,12 +255,26 @@ Stmt build_provide_loop_nest_helper(string func_name,
     }
 
     // Put all the reduction domain predicate into the containers vector.
-    // Put all the reduction domain predicate into the containers vector.
     int n_predicates = predicates.size();
     for (Expr pred : predicates) {
         pred = qualify(prefix, pred);
         Container c = {Container::If, 0, "", pred};
         nest.push_back(c);
+    }
+
+    // Add appopriate predicates on the fused loop vars to ensure we don't
+    // go out of bounds. Ignore the __outermost dims since it's going to be
+    // removed later anyway.
+    for (int i = start_fuse; (i >= 0) && (i < (int)s.dims().size()-1); ++i) {
+        const Dim &dim = s.dims()[i];
+        Expr var = Variable::make(Int(32), prefix + dim.var);
+        Expr max = Variable::make(Int(32), prefix + dim.var + ".loop_max.original");
+        Expr min = Variable::make(Int(32), prefix + dim.var + ".loop_min.original");
+        Container c_min = {Container::If, 0, "", min <= var};
+        Container c_max = {Container::If, 0, "", var <= max};
+        nest.push_back(c_min);
+        nest.push_back(c_max);
+        n_predicates += 2;
     }
 
     // Resort the containers vector so that lets are as far outwards
@@ -383,6 +404,7 @@ Stmt build_provide_loop_nest_helper(string func_name,
 // Build a loop nest about a provide node using a schedule
 Stmt build_provide_loop_nest(string func_name,
                              string prefix,
+                             int start_fuse,
                              const vector<string> &dims,
                              const Definition &def,
                              bool is_update) {
@@ -409,7 +431,8 @@ Stmt build_provide_loop_nest(string func_name,
 
     // Default schedule/values if there is no specialization
     Stmt stmt = build_provide_loop_nest_helper(
-        func_name, prefix, dims, site, values, def.split_predicate(), def.schedule(), is_update);
+        func_name, prefix, start_fuse, dims, site, values,
+        def.split_predicate(), def.schedule(), is_update);
 
     // Make any specialized copies
     const vector<Specialization> &specializations = def.specializations();
@@ -418,7 +441,7 @@ Stmt build_provide_loop_nest(string func_name,
         const Definition &s_def = specializations[i-1].definition;
 
         Stmt then_case =
-            build_provide_loop_nest(func_name, prefix, dims, s_def, is_update);
+            build_provide_loop_nest(func_name, prefix, start_fuse, dims, s_def, is_update);
 
         stmt = IfThenElse::make(c, then_case, stmt);
     }
@@ -603,7 +626,7 @@ Stmt build_produce(Function f, const Target &target) {
 
         string prefix = f.name() + ".s0.";
         vector<string> dims = f.args();
-        return build_provide_loop_nest(f.name(), prefix, dims, f.definition(), false);
+        return build_provide_loop_nest(f.name(), prefix, -1, dims, f.definition(), false);
     }
 }
 
@@ -618,7 +641,7 @@ vector<Stmt> build_update(Function f) {
         string prefix = f.name() + ".s" + std::to_string(i+1) + ".";
 
         vector<string> dims = f.args();
-        Stmt loop = build_provide_loop_nest(f.name(), prefix, dims, def, true);
+        Stmt loop = build_provide_loop_nest(f.name(), prefix, -1, dims, def, true);
         updates.push_back(loop);
     }
 
@@ -854,6 +877,114 @@ std::ostream& operator<<(std::ostream& out, const std::vector<Function>& v) {
     return out;
 }
 
+class InjectStmt : public IRMutator {
+public:
+    Stmt injected_stmt;
+    bool found_compute_level;
+    LoopLevel compute_level;
+
+    InjectStmt(const Stmt &s, const LoopLevel &compute_level)
+        : injected_stmt(s), found_compute_level(false), compute_level(compute_level) {}
+
+private:
+
+    void visit(const For *for_loop) {
+        Stmt body = mutate(for_loop->body);
+
+        if (compute_level.match(for_loop->name)) {
+            debug(0) << "Found compute level\n";
+            body = Block::make(body, injected_stmt);
+            found_compute_level = true;
+        }
+
+        if (body.same_as(for_loop->body)) {
+            stmt = for_loop;
+        } else {
+            stmt = For::make(for_loop->name,
+                             for_loop->min,
+                             for_loop->extent,
+                             for_loop->for_type,
+                             for_loop->device_api,
+                             body);
+        }
+    }
+};
+
+Stmt inject_stmt(Stmt root, Stmt injected, const LoopLevel &level) {
+    if (!root.defined()) {
+        return injected;
+    }
+    if (!injected.defined()) {
+        return root;
+    }
+    if (level.is_inline() || level.is_root()) {
+        return Block::make(root, injected);
+    }
+    InjectStmt injector(injected, level);
+    root = injector.mutate(root);
+    internal_assert(injector.found_compute_level) << "Compute level: " << level.to_string() << "\n"
+        << "root:\n" << root << "\ninjected:\n" << injected << "\n";
+    return root;
+}
+
+class SubstituteBound : public IRMutator {
+public:
+    map<string, Expr> &bounds;
+    const map<string, Expr> &replacements;
+    SubstituteBound(map<string, Expr> &b, const map<string, Expr> &r) : bounds(b), replacements(r) {}
+
+private:
+    using IRMutator::visit;
+
+    void visit(const Variable *op) {
+        //debug(0) << "***VISIT Variable: " << op->name << "\n";
+        if (ends_with(op->name, ".original")) {
+            string name = op->name.substr(0, op->name.size()-9);
+            auto iter = bounds.find(name);
+            internal_assert((iter != bounds.end()) && (iter->second.defined())) << "Cannot find " << name << "\n";
+            //debug(0) << "***Replacing " << op->name << " TO " <<  iter->second << "\n";
+            expr = iter->second;
+            return;
+        }
+        IRMutator::visit(op);
+    }
+
+    void visit(const LetStmt *op) {
+        //debug(0) << "VISITING LET: " << op->name << "\n";
+        auto iter = bounds.find(op->name);
+        Expr value;
+        if (iter != bounds.end()) {
+            iter->second = op->value;
+            //debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
+        }
+
+        const auto it = replacements.find(op->name);
+        if (it != replacements.end()) {
+            //debug(0) << "****REPLACEMENT " << op->name << " -> " << it->second << "\n";
+            value = it->second;
+        } else {
+            value = mutate(op->value);
+        }
+
+        Stmt body = mutate(op->body);
+
+        if (value.same_as(op->value) && body.same_as(op->body)) {
+            stmt = op;
+        } else {
+            stmt = LetStmt::make(op->name, value, body);
+        }
+    }
+};
+
+Stmt extract_bounds(Stmt s, map<string, Expr> &bounds, const map<string, Expr> &replacements) {
+    if (!s.defined()) {
+        return s;
+    }
+    SubstituteBound subs(bounds, replacements);
+    s = subs.mutate(s);
+    return s;
+}
+
 // Inject the allocation and realization of a group of functions which are
 // to be fused into an existing loop nest using its schedule.
 class InjectGroupRealization : public IRMutator {
@@ -873,34 +1004,6 @@ public:
         compute_level = group[0].schedule().compute_level();
         store_level = group[0].schedule().store_level();
         internal_assert(!compute_level.is_inline());
-
-        /*// Sort the fused-pairs starting based on the realization order (first to last).
-        for (Function &func : group) {
-            vector<FusedPair> &fused_pairs = func.definition().schedule().fused_pairs();
-
-            std::sort(fused_pairs.begin(), fused_pairs.end(),
-                [&](const FusedPair &lhs, const FusedPair &rhs){
-                    const auto iter_lhs = std::find(order.begin(), order.end(), lhs.func_2);
-                    const auto iter_rhs = std::find(order.begin(), order.end(), rhs.func_2);
-                    if (iter_lhs == iter_rhs) {
-                        return lhs.stage_2 < rhs.stage_2;
-                    }
-                    return iter_lhs < iter_rhs;
-                }
-            );
-        }
-
-        debug(0) << "\n";
-        for (const Function &func : group) {
-            const vector<FusedPair> &fused_pairs = func.definition().schedule().fused_pairs();
-
-            debug(0) << "Fused pairs of Func " << func.name() << "\n";
-
-            for (const auto &p : fused_pairs) {
-                debug(0) << "   Func " << p.func_1 << ".s" << p.stage_1 << " computed before"
-                         << " Func " << p.func_2 << ".s" << p.stage_2 << " at Var " << p.var_name << "\n";
-            }
-        }*/
     }
 
 private:
@@ -920,13 +1023,42 @@ private:
         }
 
         // Build the loops
-        Stmt produce = s;
+        map<string, Expr> bounds; // The original bounds of the loopness
+        map<string, Expr> replacements;
+
+        Stmt produce;
         for (size_t i = 0; i < group.size(); ++i) {
             if (!skip[i]) {
-                //TODO(psuriana): should add the loopness one by one
-                produce = Block::make(build_pipeline(group[i]), produce);
+                produce = build_produce(group[i], produce, bounds, replacements);
             }
         }
+
+        // Now, replace the all the fused loops with the appropriate bounds
+        debug(0) << "\n******\nReplacement:\n";
+        for (const auto &iter : replacements) {
+            debug(0) << iter.first << " -> " << iter.second << "\n";
+        }
+        debug(0) << "\n";
+
+        debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        produce = extract_bounds(produce, bounds, replacements);
+        debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
+
+        debug(0) << "\n******\nBOUNDS:\n";
+        for (const auto &iter : bounds) {
+            debug(0) << iter.first << " -> " << iter.second << "\n";
+        }
+        debug(0) << "\n";
+
+        debug(0) << "\n***START REPLACING\n";
+
+        for (size_t i = 0; i < group.size(); ++i) {
+            if (!skip[i]) {
+                //TODO(psuriana): should't use the bound of skipped function
+                produce = replace_with_union_bound(group[i], produce, bounds);
+            }
+        }
+
 
         // Add the producer nodes
         for (size_t i = group.size(); i > 0; --i) {
@@ -934,21 +1066,182 @@ private:
         }
 
         return Block::make(produce, consume);
+
+        //TODO(psuriana): take care of parallel/vectorize (necessary???)
     }
 
-    Stmt build_pipeline(Function func) {
-        pair<Stmt, Stmt> realization = build_production(func);
+    /*Stmt build_produce(Function f, Stmt produce) {
+        string prefix = f.name() + ".s0.";
+        produce = build_produce_definition(f, prefix, f.definition(), false, produce);
 
-        Stmt producer;
-        if (realization.first.defined() && realization.second.defined()) {
-            producer = Block::make(realization.first, realization.second);
-        } else if (realization.first.defined()) {
-            producer = realization.first;
-        } else {
-            internal_assert(realization.second.defined());
-            producer = realization.second;
+        for (size_t j = 0; j < f.updates().size(); ++j) {
+            const Definition &def = f.updates()[j];
+            string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
+            produce = build_produce_definition(f, prefix, def, true, produce);
         }
-        return producer;
+        return produce;
+    }*/
+
+    Stmt build_produce(Function f, Stmt produce, map<string, Expr> &bounds, map<string, Expr> &replacements) {
+        string prefix = f.name() + ".s0.";
+        produce = inject_stmt(produce, build_produce_definition(f, prefix, f.definition(), false, bounds, replacements),
+                              f.definition().schedule().fuse_level());
+
+        for (size_t j = 0; j < f.updates().size(); ++j) {
+            const Definition &def = f.updates()[j];
+            string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
+            produce = inject_stmt(produce, build_produce_definition(f, prefix, def, true, bounds, replacements),
+                                  def.schedule().fuse_level());
+        }
+        return produce;
+    }
+
+    Stmt replace_with_union_bound(Function f, Stmt produce, map<string, Expr> &bounds) {
+        map<string, Expr> replacements;
+        string prefix = f.name() + ".s0.";
+        produce = replace_with_union_bound_definition(f, prefix, f.definition(), produce, bounds);
+
+        for (size_t j = 0; j < f.updates().size(); ++j) {
+            const Definition &def = f.updates()[j];
+            string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
+            produce = replace_with_union_bound_definition(f, prefix, def, produce, bounds);
+        }
+        return produce;
+    }
+
+    Stmt replace_with_union_bound_definition(Function f, const string &prefix, const Definition &def,
+                                             Stmt produce, map<string, Expr> &bounds) {
+        // Compute the loop bounds for each dimension.
+        vector<Dim> dims = def.schedule().dims(); // From inner to outer
+
+        map<string, Expr> replacements;
+
+        // The loop bounds should be the union of the original bounds with the
+        // bounds of whatever functions are fused with it.
+        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            const auto iter = std::find_if(dims.begin(), dims.end(),
+                [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
+            internal_assert(iter != dims.end());
+            // Should ignore the __outermost dummy dimension.
+            for (size_t i = iter - dims.begin(); i < dims.size() - 1; ++i) {
+                string var_2 = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + dims[i].var;
+                internal_assert(bounds.count(var_2 + ".loop_min"));
+                internal_assert(bounds.count(var_2 + ".loop_max"));
+                internal_assert(bounds.count(var_2 + ".loop_extent"));
+                Expr min_2 = bounds[var_2 + ".loop_min"];
+                Expr max_2 = bounds[var_2 + ".loop_max"];
+                Expr extent_2 = bounds[var_2 + ".loop_extent"];
+
+                string var_1 = pair.func_1 + ".s" + std::to_string(pair.stage_1) + "." + dims[i].var;
+                internal_assert(bounds.count(var_1 + ".loop_min"));
+                internal_assert(bounds.count(var_1 + ".loop_max"));
+                internal_assert(bounds.count(var_1 + ".loop_extent"));
+                Expr min_1 = bounds[var_1 + ".loop_min"];
+                Expr max_1 = bounds[var_1 + ".loop_max"];
+                Expr extent_1 = bounds[var_1 + ".loop_extent"];
+
+                replacements[var_1 + ".loop_min"] = simplify(min(min_1, min_2));
+                replacements[var_1 + ".loop_max"] = simplify(max(max_1, max_2));
+                replacements[var_1 + ".loop_extent"] = simplify(replacements[var_1 + ".loop_max"] - replacements[var_1 + ".loop_min"]);
+            }
+        }
+
+        // Now, replace the all the fused loops with the appropriate bounds
+        debug(0) << "\n******\nReplacement " << prefix << ":\n";
+        for (const auto &iter : replacements) {
+            debug(0) << iter.first << " -> " << iter.second << "\n";
+        }
+        debug(0) << "\n";
+
+        //debug(0) << "\n*********\nBEFORE REPLACEMENT: \n" << produce << "\n";
+        map<string, Expr> empty_bounds;
+        produce = extract_bounds(produce, empty_bounds, replacements);
+        //debug(0) << "\n*********\nAFTER REPLACEMENT: \n" << produce << "\n";
+
+        return produce;
+    }
+
+    Stmt build_produce_definition(Function f, const string &prefix, const Definition &def,
+                                  bool is_update, map<string, Expr> &bounds, map<string, Expr> &replacements) {
+        // Compute the loop bounds for each dimension.
+        vector<Dim> dims = def.schedule().dims(); // From inner to outer
+
+        const LoopLevel &fuse_level = def.schedule().fuse_level();
+        size_t start_fuse = dims.size();
+        if (!fuse_level.is_inline() && !fuse_level.is_root()) {
+            const auto iter = std::find_if(dims.begin(), dims.end(),
+                [&fuse_level](const Dim& d) { return var_name_match(d.var, fuse_level.var().name()); });
+            internal_assert(iter != dims.end());
+            start_fuse = iter - dims.begin();
+        }
+
+        // From start_fuse to outermost, the dimensions are fused with a 'parent' function.
+        // Ignore the __outermost dimensions.
+        for (size_t i = start_fuse; i < dims.size() - 1; ++i) {
+            string var = fuse_level.func().name() + ".s" + std::to_string(fuse_level.stage()) + "." + dims[i].var;
+            Expr val = Variable::make(Int(32), var);
+        }
+
+        // The loop bounds should be the union of the original bounds with the
+        // bounds of whatever functions are fused with it.
+        vector<pair<string, Expr>> add_lets;
+        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            const auto iter = std::find_if(dims.begin(), dims.end(),
+                [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
+            internal_assert(iter != dims.end());
+            start_fuse = std::min(start_fuse, (size_t)(iter - dims.begin()));
+            // Should ignore the __outermost dummy dimension.
+            for (size_t i = iter - dims.begin(); i < dims.size() - 1; ++i) {
+                string var = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + dims[i].var;
+                bounds.emplace(var + ".loop_min", Expr());
+                bounds.emplace(var + ".loop_max", Expr());
+                bounds.emplace(var + ".loop_extent", Expr());
+
+                string var_orig = pair.func_1 + ".s" + std::to_string(pair.stage_1) + "." + dims[i].var;
+                Expr val = Variable::make(Int(32), var_orig);
+                replacements.emplace(var + ".loop_min", val);
+                replacements.emplace(var + ".loop_max", val);
+                replacements.emplace(var + ".loop_extent", make_const(Int(32), 1));
+
+                bounds.emplace(var_orig + ".loop_min", Expr());
+                bounds.emplace(var_orig + ".loop_max", Expr());
+                bounds.emplace(var_orig + ".loop_extent", Expr());
+            }
+            // Add any "pure" dimensions that are not part of the fused, since it may
+            // be refer later by the union in case of split. Ignore __outermost
+            for (size_t i = 0; i < f.args().size() - 1; ++i) {
+                const string &var_name = f.args()[i];
+                const auto iter = std::find_if(dims.begin(), dims.end(),
+                    [&var_name](const Dim& d) { return var_name_match(d.var, var_name); });
+                if ((iter == dims.end()) || ((size_t)(iter - dims.begin()) < start_fuse)) {
+                    string var = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + var_name;
+                    debug(0) << "ADDING LET OF " << var << "\n";
+
+                    Expr max = Variable::make(Int(32), var + ".max");
+                    Expr min = Variable::make(Int(32), var + ".min"); // Inject instance name here? (compute instance names during lowering)
+                    add_lets.push_back(std::make_pair(var + ".loop_extent", (max + 1) - min));
+                    add_lets.push_back(std::make_pair(var + ".loop_min", min));
+                    add_lets.push_back(std::make_pair(var + ".loop_max", max));
+                }
+            }
+        }
+
+        // Now, replace the all the fused loops with the appropriate bounds
+        debug(0) << "\n******\nLETS " << prefix << ":\n";
+        for (const auto &iter : add_lets) {
+            debug(0) << iter.first << " -> " << iter.second << "\n";
+        }
+        debug(0) << "\n";
+
+        Stmt produce = build_provide_loop_nest(f.name(), prefix, start_fuse, f.args(), def, is_update);
+
+        for (const auto &b : add_lets) {
+            produce = LetStmt::make(b.first, b.second, produce);
+        }
+
+        //TODO(psuriana): need to select the schedule so we don't doubly schedule things
+        // also need to put the subsequent definition at the right loop level
+        return produce;
     }
 
     Stmt build_realize_group(Stmt s) {
@@ -1371,6 +1664,11 @@ void validate_fused_group_schedule_helper(const string &fn, size_t stage,
         const Function &func_2 = env.find(p.func_2)->second;
         const Definition &def_2 = (p.stage_2 == 0) ? func_2.definition() : func_2.update(p.stage_2 - 1);
 
+        // f2.compute_with(f1, var) is allowed only if f2 has no specializations.
+        user_assert(func_2.definition().specializations().empty())
+            << "Func " << func_2.name() << " is scheduled to be computed with "
+            << func_1.name() << ", so it must not have any specializations.\n";
+
         // Verify that the functions being computed with are not scheduled inline.
         user_assert(!func_1.definition().schedule().compute_level().is_inline())
             << "Invalid compute_with: " << p.func_1 << ".s" << p.stage_1
@@ -1391,21 +1689,43 @@ void validate_fused_group_schedule_helper(const string &fn, size_t stage,
         const vector<Dim> &dims_1 = def_1.schedule().dims();
         const vector<Dim> &dims_2 = def_2.schedule().dims();
 
-        int var_index = -1;
-        for (size_t i = 0; (i < std::min(dims_1.size(), dims_2.size())) && (var_index == -1); ++i) {
-            if (dims_1[i].var == dims_2[i].var) {
-                var_index = i;
-            }
-            if (dims_1[i] != dims_2[i]) {
+        for (const auto &d : dims_1) {
+            debug(0) << "DIM: " << d.var << "\n";
+        }
+
+        debug(0) << "\nFUNC 2:\n";
+        for (const auto &d : dims_2) {
+            debug(0) << "DIM: " << d.var << "\n";
+        }
+
+        // Assert that the variable specified in compute_with is in the dim list.
+        const auto iter_1 = std::find_if(dims_1.begin(), dims_1.end(),
+            [&p](const Dim& d) { return var_name_match(d.var, p.var_name); });
+        user_assert(iter_1 != dims_1.end())
+            << "Invalid compute_with: cannot find " << p.var_name << " in "
+            << p.func_1 << ".s" << p.stage_1 << "\n";
+
+        const auto iter_2 = std::find_if(dims_2.begin(), dims_2.end(),
+            [&p](const Dim& d) { return var_name_match(d.var, p.var_name); });
+        user_assert(iter_2 != dims_2.end())
+            << "Invalid compute_with: cannot find " << p.var_name << " in "
+            << p.func_2 << ".s" << p.stage_2 << "\n";
+
+        size_t start_fuse_1 = iter_1 - dims_1.begin();
+        size_t start_fuse_2 = iter_2 - dims_2.begin();
+
+        int n_fused = dims_1.size() - start_fuse_1;
+        user_assert(n_fused == (int)(dims_2.size() - start_fuse_2))
+            << "Invalid compute_with: # of fused dims of " << p.func_1 << ".s"
+            << p.stage_1 << " and " << p.func_2 << ".s" << p.stage_2 << " do not match.\n";
+
+        for (int i = 0; i < n_fused; ++i) {
+            if (dims_1[start_fuse_1 + i] != dims_2[start_fuse_2 + i]) {
                 user_error << "Invalid compute_with: dims " << i << " of " << p.func_1 << ".s"
-                           << p.stage_1 << " and " << p.func_2 << ".s" << p.stage_2
-                           << " do not match.\n";
+                           << p.stage_1 << "(" << dims_1[start_fuse_1 + i].var << ") and " << p.func_2
+                           << ".s" << p.stage_2 << "(" << dims_2[start_fuse_2 + i].var << ") do not match.\n";
             }
         }
-        // Theoretically, this should never happen.
-        user_assert(var_index != -1) << "Cannot find dimension " << p.var_name << " of "
-                                     << p.func_2 << ".s" << p.stage_2 << " computed with "
-                                     << p.func_1 << ".s" << p.stage_1 << "\n";
 
         // Verify that they are computed at the same loop level.
         user_assert((p.func_1 == p.func_2) ||
@@ -1497,16 +1817,9 @@ Stmt schedule_functions(const vector<Function> &outputs,
             for (Function o : outputs) {
                 is_output_list[j-1] = is_output_list[j-1] | o.same_as(funcs[j-1]);
             }
-            //TODO(psuriana): find the best place to put this
-            //validate_schedule(funcs[j-1], s, target, is_output_list[j-1], env);
+            validate_schedule(funcs[j-1], s, target, is_output_list[j-1], env);
             any_memoized = any_memoized || funcs[j-1].schedule().memoized();
         }
-
-        /*debug(0) << "GROUP " << i << "\n";
-        for (size_t j = 0; j < group.size(); ++j) {
-            debug(0) << "...Func " << funcs[j].name() << ", is output? " << is_output_list[j] << "\n";
-        }
-        debug(0) << "\n";*/
 
         if (group.size() == 1) {
             // 1 member only -> no loop fusion
@@ -1521,40 +1834,13 @@ Stmt schedule_functions(const vector<Function> &outputs,
                 internal_assert(injector.found_store_level && injector.found_compute_level);
             }
         } else {
-            //TODO(psuriana): Inject the realization of loop-fusion group
             InjectGroupRealization injector(funcs, is_output_list, target, order);
             s = injector.mutate(s);
             internal_assert(injector.found_store_level && injector.found_compute_level);
         }
 
-        debug(2) << s << '\n';
+        debug(3) << s << '\n';
     }
-
-    /*for (size_t i = order.size(); i > 0; i--) {
-        Function f = env.find(order[i-1])->second;
-
-        bool is_output = false;
-        for (Function o : outputs) {
-            is_output |= o.same_as(f);
-        }
-
-        validate_schedule(f, s, target, is_output, env);
-
-        debug(0) << "\n******************\n";
-        if (f.can_be_inlined() &&
-            f.schedule().compute_level().is_inline()) {
-            debug(0) << "Inlining " << order[i-1] << '\n';
-            s = inline_function(s, f);
-        } else {
-            debug(0) << "Injecting realization of " << order[i-1] << '\n';
-            InjectRealization injector(f, is_output, target);
-            s = injector.mutate(s);
-            internal_assert(injector.found_store_level && injector.found_compute_level);
-        }
-        any_memoized = any_memoized || f.schedule().memoized();
-        debug(0) << "\nFinal:\n";
-        debug(0) << s << '\n';
-    }*/
 
     // We can remove the loop over root now
     const For *root_loop = s.as<For>();
