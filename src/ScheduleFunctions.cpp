@@ -892,7 +892,7 @@ private:
         Stmt body = mutate(for_loop->body);
 
         if (compute_level.match(for_loop->name)) {
-            debug(0) << "Found compute level\n";
+            debug(3) << "Found compute level\n";
             body = Block::make(body, injected_stmt);
             found_compute_level = true;
         }
@@ -1034,23 +1034,23 @@ private:
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        debug(0) << "\n******\nReplacement:\n";
+        /*debug(0) << "\n******\nReplacement:\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
-        debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        //debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
         produce = extract_bounds(produce, bounds, replacements);
-        debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
+        //debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
 
-        debug(0) << "\n******\nBOUNDS:\n";
+        /*debug(0) << "\n******\nBOUNDS:\n";
         for (const auto &iter : bounds) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
         debug(0) << "\n";
 
-        debug(0) << "\n***START REPLACING\n";
+        debug(0) << "\n***START REPLACING\n";*/
 
         for (size_t i = 0; i < group.size(); ++i) {
             if (!skip[i]) {
@@ -1142,16 +1142,16 @@ private:
 
                 replacements[var_1 + ".loop_min"] = simplify(min(min_1, min_2));
                 replacements[var_1 + ".loop_max"] = simplify(max(max_1, max_2));
-                replacements[var_1 + ".loop_extent"] = simplify(replacements[var_1 + ".loop_max"] - replacements[var_1 + ".loop_min"]);
+                replacements[var_1 + ".loop_extent"] = simplify(replacements[var_1 + ".loop_max"] - replacements[var_1 + ".loop_min"]) + 1;
             }
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        debug(0) << "\n******\nReplacement " << prefix << ":\n";
+        /*debug(0) << "\n******\nReplacement " << prefix << ":\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
         //debug(0) << "\n*********\nBEFORE REPLACEMENT: \n" << produce << "\n";
         map<string, Expr> empty_bounds;
@@ -1215,7 +1215,7 @@ private:
                     [&var_name](const Dim& d) { return var_name_match(d.var, var_name); });
                 if ((iter == dims.end()) || ((size_t)(iter - dims.begin()) < start_fuse)) {
                     string var = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + var_name;
-                    debug(0) << "ADDING LET OF " << var << "\n";
+                    //debug(0) << "ADDING LET OF " << var << "\n";
 
                     Expr max = Variable::make(Int(32), var + ".max");
                     Expr min = Variable::make(Int(32), var + ".min"); // Inject instance name here? (compute instance names during lowering)
@@ -1227,11 +1227,11 @@ private:
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        debug(0) << "\n******\nLETS " << prefix << ":\n";
+        /*debug(0) << "\n******\nLETS " << prefix << ":\n";
         for (const auto &iter : add_lets) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
         Stmt produce = build_provide_loop_nest(f.name(), prefix, start_fuse, f.args(), def, is_update);
 
@@ -1688,15 +1688,6 @@ void validate_fused_group_schedule_helper(const string &fn, size_t stage,
         // Verify that their dimensions up to "var_name" are the same.
         const vector<Dim> &dims_1 = def_1.schedule().dims();
         const vector<Dim> &dims_2 = def_2.schedule().dims();
-
-        for (const auto &d : dims_1) {
-            debug(0) << "DIM: " << d.var << "\n";
-        }
-
-        debug(0) << "\nFUNC 2:\n";
-        for (const auto &d : dims_2) {
-            debug(0) << "DIM: " << d.var << "\n";
-        }
 
         // Assert that the variable specified in compute_with is in the dim list.
         const auto iter_1 = std::find_if(dims_1.begin(), dims_1.end(),
