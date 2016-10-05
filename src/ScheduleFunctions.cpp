@@ -81,6 +81,18 @@ Stmt build_provide_loop_nest_helper(string func_name,
     // Make the (multi-dimensional multi-valued) store node.
     Stmt stmt = Provide::make(func_name, values, site);
 
+    // Add appopriate predicates on the fused loop vars to ensure we don't
+    // go out of bounds. Ignore the __outermost dims since it's going to be
+    // removed later anyway.
+    for (int i = start_fuse; (i >= 0) && (i < (int)s.dims().size()-1); ++i) {
+        const Dim &dim = s.dims()[i];
+        Expr var = Variable::make(Int(32), prefix + dim.var);
+        Expr max = Variable::make(Int(32), prefix + dim.var + ".loop_max.original");
+        Expr min = Variable::make(Int(32), prefix + dim.var + ".loop_min.original");
+        stmt = IfThenElse::make(likely(min <= var), stmt);
+        stmt = IfThenElse::make(likely(var <= max), stmt);
+    }
+
     // A map of the dimensions for which we know the extent is a
     // multiple of some Expr. This can happen due to a bound, or
     // align_bounds directive, or if a dim comes from the inside
@@ -260,21 +272,6 @@ Stmt build_provide_loop_nest_helper(string func_name,
         pred = qualify(prefix, pred);
         Container c = {Container::If, 0, "", pred};
         nest.push_back(c);
-    }
-
-    // Add appopriate predicates on the fused loop vars to ensure we don't
-    // go out of bounds. Ignore the __outermost dims since it's going to be
-    // removed later anyway.
-    for (int i = start_fuse; (i >= 0) && (i < (int)s.dims().size()-1); ++i) {
-        const Dim &dim = s.dims()[i];
-        Expr var = Variable::make(Int(32), prefix + dim.var);
-        Expr max = Variable::make(Int(32), prefix + dim.var + ".loop_max.original");
-        Expr min = Variable::make(Int(32), prefix + dim.var + ".loop_min.original");
-        Container c_min = {Container::If, 0, "", min <= var};
-        Container c_max = {Container::If, 0, "", var <= max};
-        nest.push_back(c_min);
-        nest.push_back(c_max);
-        n_predicates += 2;
     }
 
     // Resort the containers vector so that lets are as far outwards
@@ -955,7 +952,7 @@ private:
         Expr value;
         if (iter != bounds.end()) {
             iter->second = op->value;
-            //debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
+            debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
         }
 
         const auto it = replacements.find(op->name);
@@ -1040,25 +1037,36 @@ private:
         }
         debug(0) << "\n";*/
 
-        //debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
-        produce = extract_bounds(produce, bounds, replacements);
-        //debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
-
-        /*debug(0) << "\n******\nBOUNDS:\n";
+        debug(0) << "\n******\nBEFORE BOUNDS:\n";
         for (const auto &iter : bounds) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
         debug(0) << "\n";
 
-        debug(0) << "\n***START REPLACING\n";*/
+        //debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        produce = extract_bounds(produce, bounds, replacements);
+        //debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
 
-        for (size_t i = 0; i < group.size(); ++i) {
+        debug(0) << "\n******\nBOUNDS:\n";
+        for (const auto &iter : bounds) {
+            debug(0) << iter.first << " -> " << iter.second << "\n";
+        }
+        debug(0) << "\n";
+
+        //debug(0) << "\n***START REPLACING\n";
+
+        /*for (size_t i = 0; i < group.size(); ++i) {
             if (!skip[i]) {
                 //TODO(psuriana): should't use the bound of skipped function
                 produce = replace_with_union_bound(group[i], produce, bounds);
             }
+        }*/
+        for (size_t i = group.size(); i > 0; --i) {
+            if (!skip[i-1]) {
+                //TODO(psuriana): should't use the bound of skipped function
+                produce = replace_with_union_bound(group[i-1], produce, bounds);
+            }
         }
-
 
         // Add the producer nodes
         for (size_t i = group.size(); i > 0; --i) {
@@ -1142,7 +1150,8 @@ private:
 
                 replacements[var_1 + ".loop_min"] = simplify(min(min_1, min_2));
                 replacements[var_1 + ".loop_max"] = simplify(max(max_1, max_2));
-                replacements[var_1 + ".loop_extent"] = simplify(replacements[var_1 + ".loop_max"] - replacements[var_1 + ".loop_min"]) + 1;
+                replacements[var_1 + ".loop_extent"] =
+                    simplify((replacements[var_1 + ".loop_max"] + 1) - replacements[var_1 + ".loop_min"]);
             }
         }
 
@@ -1209,7 +1218,19 @@ private:
             }
             // Add any "pure" dimensions that are not part of the fused, since it may
             // be refer later by the union in case of split. Ignore __outermost
-            for (size_t i = 0; i < f.args().size() - 1; ++i) {
+            /*debug(0) << "\n*****\nARGS:\n";
+            for (const auto &s : f.args()) {
+                debug(0) << s << ", ";
+            }
+            debug(0) << "\n";
+
+            debug(0) << "\n*****\nDIMS:\n";
+            for (const auto &s : dims) {
+                debug(0) << s.var << ", ";
+            }
+            debug(0) << "\n";*/
+
+            for (size_t i = 0; i < f.args().size(); ++i) {
                 const string &var_name = f.args()[i];
                 const auto iter = std::find_if(dims.begin(), dims.end(),
                     [&var_name](const Dim& d) { return var_name_match(d.var, var_name); });
