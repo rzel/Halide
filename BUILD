@@ -257,14 +257,6 @@ cc_library(
     ],
 )
 
-genrule(
-    name = "copy_runtime_headers",
-    srcs = glob(["src/runtime/Halide*.h"]),
-    outs = [f.split('/')[-1] for f in glob(["src/runtime/Halide*.h"])],
-    cmd = "cp -f $(SRCS) $(@D)",
-)
-
-
 # Android needs the -llog flag for __android_log_print
 _ANDROID_RUNTIME_LINKOPTS = [
     "-ldl",
@@ -279,7 +271,8 @@ _DEFAULT_RUNTIME_LINKOPTS = [
 # plus definitions of functions that can be replaced by hosting applications.
 cc_library(
     name = "runtime",
-    hdrs = [":copy_runtime_headers"],
+    hdrs = glob(["src/runtime/Halide*.h"]),
+    includes = ["src/runtime"],
     linkopts = select({
         # There isn't (yet) a good way to make a config that is "Any Android",
         # so we're forced to specialize on all supported Android CPU configs.
@@ -290,14 +283,6 @@ cc_library(
         "//conditions:default": _DEFAULT_RUNTIME_LINKOPTS,
     }),
     visibility = ["//visibility:public"],
-)
-
-cc_binary(
-    name = "HalideTraceViz",
-    srcs = [
-        "util/HalideTraceViz.cpp",
-        "util/inconsolata.h",
-    ],
 )
 
 # TODO: should this be moved to a BUILD file in src/runtime?

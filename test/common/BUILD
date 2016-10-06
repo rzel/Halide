@@ -1,6 +1,6 @@
 cc_library(
-    name = "gpu_object_lifetime",
-    srcs = ["gpu_object_lifetime.h"],
+    name = "check_call_graphs",
+    srcs = ["check_call_graphs.h"],
     visibility = ["//test:__subpackages__"]
 )
 
@@ -9,3 +9,10 @@ filegroup(
     srcs = ["expect_failure.sh"],
     visibility = ["//test:__subpackages__"]
 )
+
+cc_library(
+    name = "gpu_object_lifetime",
+    srcs = ["gpu_object_lifetime.h"],
+    visibility = ["//test:__subpackages__"]
+)
+
