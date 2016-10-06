@@ -1,5 +1,29 @@
 # TODO: NaCl not supported at all
 # TODO: should "-c dbg" use the debug runtime?
+# TODO: test/generators
+# TODO: default-copts?
+# TODO: platform detection for OpenGL linkage
+# TODO apps/HelloAndroid
+# TODO apps/HelloAndroidCamera2
+# TODO apps/HelloAndroidGL
+# TODO apps/HelloAppleMetal
+# TODO apps/HelloHexagon
+# TODO apps/HelloMatlab
+# TODO apps/HelloiOS
+# TODO apps/fft
+# TODO apps/glsl
+# TODO apps/interpolate
+# TODO apps/linear_algebra
+# TODO apps/local_laplacian
+# TODO apps/modules
+# TODO apps/nacl_demos
+# TODO apps/opengl_demo
+# TODO apps/openglcompute
+# TODO apps/renderscript
+# TODO apps/resize
+# TODO apps/simd_op_check
+# TODO apps/templates
+# TODO apps/wavelet
 
 package(
     default_visibility = ["//visibility:private"],

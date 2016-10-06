@@ -1,8 +1,2 @@
-package(
-    default_visibility = ["//visibility:public"]
-)
+exports_files(glob(["*.png"]))
 
-filegroup(
-    name = "images",
-    srcs = glob(["*.png"]),
-)
