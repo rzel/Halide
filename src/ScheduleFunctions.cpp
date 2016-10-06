@@ -949,12 +949,12 @@ private:
     void visit(const LetStmt *op) {
         //debug(0) << "VISITING LET: " << op->name << "\n";
         auto iter = bounds.find(op->name);
-        Expr value;
         if (iter != bounds.end()) {
             iter->second = op->value;
             debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
         }
 
+        Expr value;
         const auto it = replacements.find(op->name);
         if (it != replacements.end()) {
             //debug(0) << "****REPLACEMENT " << op->name << " -> " << it->second << "\n";
@@ -992,9 +992,11 @@ public:
     const Target &target;
     LoopLevel compute_level;
     LoopLevel store_level;
+    const map<string, Function> &env;
 
-    InjectGroupRealization(vector<Function> &g, const vector<bool> &o, const Target &t, const vector<string> &order)
-            : group(g), is_output_list(o), found_store_level(false), found_compute_level(false), target(t) {
+    InjectGroupRealization(vector<Function> &g, const vector<bool> &o, const Target &t,
+                           const vector<string> &order, const map<string, Function> &env)
+            : group(g), is_output_list(o), found_store_level(false), found_compute_level(false), target(t), env(env) {
         internal_assert(!group.empty());
         internal_assert(group.size() == is_output_list.size());
 
@@ -1043,9 +1045,9 @@ private:
         }
         debug(0) << "\n";
 
-        //debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
         produce = extract_bounds(produce, bounds, replacements);
-        //debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
+        debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
 
         debug(0) << "\n******\nBOUNDS:\n";
         for (const auto &iter : bounds) {
@@ -1061,12 +1063,7 @@ private:
                 produce = replace_with_union_bound(group[i], produce, bounds);
             }
         }*/
-        for (size_t i = group.size(); i > 0; --i) {
-            if (!skip[i-1]) {
-                //TODO(psuriana): should't use the bound of skipped function
-                produce = replace_with_union_bound(group[i-1], produce, bounds);
-            }
-        }
+        produce = replace_with_union_bound(group[0], produce, bounds);
 
         // Add the producer nodes
         for (size_t i = group.size(); i > 0; --i) {
@@ -1105,16 +1102,48 @@ private:
     }
 
     Stmt replace_with_union_bound(Function f, Stmt produce, map<string, Expr> &bounds) {
-        map<string, Expr> replacements;
-        string prefix = f.name() + ".s0.";
+        string prefix = f.name() + ".s0";
+        debug(0) << "\n*********\nBEFORE REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
         produce = replace_with_union_bound_definition(f, prefix, f.definition(), produce, bounds);
+        debug(0) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
 
-        for (size_t j = 0; j < f.updates().size(); ++j) {
+        /*for (size_t j = 0; j < f.updates().size(); ++j) {
             const Definition &def = f.updates()[j];
-            string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
+            string prefix = f.name() + ".s" + std::to_string(j+1);
+            debug(0) << "\n*********\nBEFORE REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
             produce = replace_with_union_bound_definition(f, prefix, def, produce, bounds);
-        }
+            debug(0) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
+        }*/
         return produce;
+    }
+
+    void collect_all_dependence_helper(const string &prefix, const Definition &def, const FusedPair &p,
+                                       vector<FusedPair> &dependence, set<string> &visited) {
+        visited.insert(prefix);
+        dependence.push_back(p);
+        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            string prefix_2 = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
+            if (visited.find(prefix_2) == visited.end()) {
+                const Function &f = env.find(pair.func_2)->second;
+                const Definition &def_2 = (pair.stage_2 == 0) ? f.definition() : f.update(pair.stage_2 - 1);
+                collect_all_dependence_helper(prefix_2, def_2, pair, dependence, visited);
+            }
+        }
+    }
+
+    vector<FusedPair> collect_all_dependence(const Definition &def) {
+        set<string> visited;
+        vector<FusedPair> dependence;
+
+        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            string prefix = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
+            if (visited.find(prefix) == visited.end()) {
+                const Function &f = env.find(pair.func_2)->second;
+                const Definition &def_2 = (pair.stage_2 == 0) ? f.definition() : f.update(pair.stage_2 - 1);
+                collect_all_dependence_helper(prefix, def_2, pair, dependence, visited);
+            }
+        }
+        return dependence;
     }
 
     Stmt replace_with_union_bound_definition(Function f, const string &prefix, const Definition &def,
@@ -1124,9 +1153,15 @@ private:
 
         map<string, Expr> replacements;
 
-        // The loop bounds should be the union of the original bounds with the
-        // bounds of whatever functions are fused with it.
-        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+        vector<FusedPair> dependence = collect_all_dependence(def);
+        debug(0) << "\n*******\nDEPENDENCE OF " << prefix << ":\n";
+        for (const auto &pair : dependence) {
+            string prefix = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
+            debug(0) << "   " << prefix << "\n";
+        }
+        debug(0) << "\n";
+
+        for (const FusedPair &pair : dependence) {
             const auto iter = std::find_if(dims.begin(), dims.end(),
                 [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
             internal_assert(iter != dims.end());
@@ -1140,13 +1175,24 @@ private:
                 Expr max_2 = bounds[var_2 + ".loop_max"];
                 Expr extent_2 = bounds[var_2 + ".loop_extent"];
 
-                string var_1 = pair.func_1 + ".s" + std::to_string(pair.stage_1) + "." + dims[i].var;
-                internal_assert(bounds.count(var_1 + ".loop_min"));
+                debug(0) << "++++DEPENDENCE: " << var_2 << ", min: " << min_2 << ", max: " << max_2 << ", extent: " << extent_2 << "\n";
+
+                string var_1 = prefix + "." + dims[i].var;
+                internal_assert(bounds.count(var_1 + ".loop_min")) << var_1 << "\n";
                 internal_assert(bounds.count(var_1 + ".loop_max"));
                 internal_assert(bounds.count(var_1 + ".loop_extent"));
-                Expr min_1 = bounds[var_1 + ".loop_min"];
-                Expr max_1 = bounds[var_1 + ".loop_max"];
-                Expr extent_1 = bounds[var_1 + ".loop_extent"];
+
+                Expr min_1, max_1, extent_1;
+                const auto it = replacements.find(var_1 + ".loop_min");
+                if (it == replacements.end()) {
+                    min_1 = bounds[var_1 + ".loop_min"];
+                    max_1 = bounds[var_1 + ".loop_max"];
+                    extent_1 = bounds[var_1 + ".loop_extent"];
+                } else {
+                    min_1 = replacements[var_1 + ".loop_min"];
+                    max_1 = replacements[var_1 + ".loop_max"];
+                    extent_1 = replacements[var_1 + ".loop_extent"];
+                }
 
                 replacements[var_1 + ".loop_min"] = simplify(min(min_1, min_2));
                 replacements[var_1 + ".loop_max"] = simplify(max(max_1, max_2));
@@ -1155,12 +1201,34 @@ private:
             }
         }
 
+        // The loop bounds should be the union of the original bounds with the
+        // bounds of whatever functions are fused with it.
+        for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            const auto iter = std::find_if(dims.begin(), dims.end(),
+                [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
+            internal_assert(iter != dims.end());
+            // Should ignore the __outermost dummy dimension.
+            for (size_t i = iter - dims.begin(); i < dims.size() - 1; ++i) {
+                string var_2 = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + dims[i].var;
+                internal_assert(bounds.count(var_2 + ".loop_min"));
+                internal_assert(bounds.count(var_2 + ".loop_max"));
+                internal_assert(bounds.count(var_2 + ".loop_extent"));
+
+                // Reset the extents
+                string var_1 = pair.func_1 + ".s" + std::to_string(pair.stage_1) + "." + dims[i].var;
+                Expr val = Variable::make(Int(32), var_1);
+                bounds[var_2 + ".loop_min"] = val;
+                bounds[var_2 + ".loop_max"] = val;
+                bounds[var_2 + ".loop_extent"] = make_const(Int(32), 1);
+            }
+        }
+
         // Now, replace the all the fused loops with the appropriate bounds
-        /*debug(0) << "\n******\nReplacement " << prefix << ":\n";
+        debug(0) << "\n******\nReplacement " << prefix << ":\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";*/
+        debug(0) << "\n";
 
         //debug(0) << "\n*********\nBEFORE REPLACEMENT: \n" << produce << "\n";
         map<string, Expr> empty_bounds;
@@ -1846,7 +1914,7 @@ Stmt schedule_functions(const vector<Function> &outputs,
                 internal_assert(injector.found_store_level && injector.found_compute_level);
             }
         } else {
-            InjectGroupRealization injector(funcs, is_output_list, target, order);
+            InjectGroupRealization injector(funcs, is_output_list, target, order, env);
             s = injector.mutate(s);
             internal_assert(injector.found_store_level && injector.found_compute_level);
         }

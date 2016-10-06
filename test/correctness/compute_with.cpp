@@ -150,32 +150,50 @@ int multiple_fuse_group_test() {
 }
 
 int multiple_outputs_test() {
-    Var x("x");
-    Func f("f"), g("g"), input("q");
+    const int f_size = 10;
+    const int g_size = 33;
+    Image<int> f_im(f_size, f_size), g_im(g_size, g_size);
+    Image<int> f_im_ref(f_size, f_size), g_im_ref(g_size, g_size);
 
-    input(x) = x*x;
-    f(x) = 10;
-    f(x) += 100*x - input(x - 1);
-    g(x) = x + input(x);
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), input("q");
 
-    f.update(0).compute_with(f, x);
-    g.compute_with(f.update(0), x);
-    //g.compute_with(f, x);
+        input(x, y) = x + y + 1;
+        f(x, y) = 10;
+        f(x, y) += 100 - input(x, y);
+        g(x, y) = x + input(x, y);
+        Pipeline({f, g}).realize({f_im_ref, g_im_ref});
+    }
 
-    Image<int> f_im(100);
-    Image<int> g_im(100);
-    Pipeline({f, g}).realize({f_im, g_im});
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), input("q");
+
+        input(x, y) = x + y + 1;
+        f(x, y) = 10;
+        f(x, y) += 100 - input(x, y);
+        g(x, y) = x + input(x, y);
+
+        //input.compute_at(f, x); // Trigger simplify error -> Condition failed: !var_info.contains(op->name)
+        input.compute_root();
+
+        f.update(0).compute_with(f, x);
+        g.compute_with(f.update(0), y);
+
+        Pipeline({f, g}).realize({f_im, g_im});
+    }
 
     for (int x = 0; x < f_im.width(); x++) {
-        if (f_im(x) != (100*x - (x - 1)*(x - 1) + 10)) {
-            printf("f(%d) = %d instead of %d\n", x, f_im(x), 100*x);
+        if (f_im(x) != f_im_ref(x)) {
+            printf("f(%d) = %d instead of %d\n", x, f_im(x), f_im_ref(x));
             return -1;
         }
     }
 
     for (int x = 0; x < g_im.width(); x++) {
-        if (g_im(x) != (x + x*x)) {
-            printf("g(%d) = %d instead of %d\n", x, f_im(x), x);
+        if (g_im(x) != g_im_ref(x)) {
+            printf("g(%d) = %d instead of %d\n", x, g_im(x), g_im_ref(x));
             return -1;
         }
     }
@@ -184,7 +202,7 @@ int multiple_outputs_test() {
 }
 
 int main(int argc, char **argv) {
-    printf("Running split reorder test\n");
+    /*printf("Running split reorder test\n");
     if (split_test() != 0) {
         return -1;
     }
@@ -197,12 +215,12 @@ int main(int argc, char **argv) {
     printf("Running multiple fuse group test\n");
     if (multiple_fuse_group_test() != 0) {
         return -1;
-    }
+    }*/
 
-    /*printf("Running multiple outputs test\n");
+    printf("Running multiple outputs test\n");
     if (multiple_outputs_test() != 0) {
         return -1;
-    }*/
+    }
 
     printf("Success!\n");
     return 0;
