@@ -23,6 +23,10 @@ using namespace Halide;
 #include "halide_image_io.h"
 using namespace Halide::Tools;
 
+#ifndef TUTORIAL_IMAGES_DIR
+    #define TUTORIAL_IMAGES_DIR "images/"
+#endif
+
 int main(int argc, char **argv) {
     // First we'll declare some Vars to use below.
     Var x("x"), y("y"), c("c");
@@ -31,7 +35,7 @@ int main(int argc, char **argv) {
     // first horizontally, and then vertically.
     {
         // Take a color 8-bit input
-        Image<uint8_t> input = load_image("images/rgb.png");
+        Image<uint8_t> input = load_image(TUTORIAL_IMAGES_DIR "rgb.png");
 
         // Upgrade it to 16-bit, so we can do math without it overflowing.
         Func input_16("input_16");
@@ -99,7 +103,7 @@ int main(int argc, char **argv) {
     // The same pipeline, with a boundary condition on the input.
     {
         // Take a color 8-bit input
-        Image<uint8_t> input = load_image("images/rgb.png");
+        Image<uint8_t> input = load_image(TUTORIAL_IMAGES_DIR "rgb.png");
 
         // This time, we'll wrap the input in a Func that prevents
         // reading out of bounds:

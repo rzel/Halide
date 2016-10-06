@@ -24,13 +24,17 @@
 #include "halide_image_io.h"
 using namespace Halide::Tools;
 
+#ifndef TUTORIAL_IMAGES_DIR
+    #define TUTORIAL_IMAGES_DIR "images/"
+#endif
+
 int main(int argc, char **argv) {
 
     // This program defines a single-stage imaging pipeline that
     // brightens an image.
 
     // First we'll load the input image we wish to brighten.
-    Halide::Image<uint8_t> input = load_image("images/rgb.png");
+    Halide::Image<uint8_t> input = load_image(TUTORIAL_IMAGES_DIR "rgb.png");
 
     // See figures/lesson_02_input.jpg for a smaller version.
 

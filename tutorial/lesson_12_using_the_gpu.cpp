@@ -30,6 +30,10 @@ using namespace Halide::Tools;
 // Define some Vars to use.
 Var x, y, c, i;
 
+#ifndef TUTORIAL_IMAGES_DIR
+    #define TUTORIAL_IMAGES_DIR "images/"
+#endif
+
 // We're going to want to schedule a pipeline in several ways, so we
 // define the pipeline in a class so that we can recreate it several
 // times with different schedules.
@@ -258,7 +262,7 @@ bool have_opencl_or_metal();
 
 int main(int argc, char **argv) {
     // Load an input image.
-    Image<uint8_t> input = load_image("images/rgb.png");
+    Image<uint8_t> input = load_image(TUTORIAL_IMAGES_DIR "rgb.png");
 
     // Allocated an image that will store the correct output
     Image<uint8_t> reference_output(input.width(), input.height(), input.channels());

@@ -31,12 +31,16 @@ using namespace Halide;
 #include "halide_image_io.h"
 using namespace Halide::Tools;
 
+#ifndef TUTORIAL_IMAGES_DIR
+    #define TUTORIAL_IMAGES_DIR "images/"
+#endif
+
 int main(int argc, char **argv) {
     // Declare some Vars to use below.
     Var x("x"), y("y");
 
     // Load a grayscale image to use as an input.
-    Image<uint8_t> input = load_image("images/gray.png");
+    Image<uint8_t> input = load_image(TUTORIAL_IMAGES_DIR "gray.png");
 
     // You can define a Func in multiple passes. Let's see a toy
     // example first.
