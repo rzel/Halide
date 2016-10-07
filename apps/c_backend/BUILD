@@ -1,10 +1,11 @@
-load("@//:halide.bzl", "halide_language_copts")
+load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
 
 cc_binary(
     name = "pipeline_gen",
     srcs = ["pipeline.cpp"],
     deps = ["@//:language"],
-    copts = halide_language_copts()
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts()
 )
 
 genrule(
@@ -38,7 +39,8 @@ cc_binary(
     name = "pipeline_cpp_gen",
     srcs = ["pipeline_cpp.cpp"],
     deps = ["@//:language"],
-    copts = halide_language_copts()
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts()
 )
 
 genrule(

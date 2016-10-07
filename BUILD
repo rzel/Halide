@@ -23,7 +23,6 @@
 # TODO apps/resize
 # TODO apps/simd_op_check
 # TODO apps/templates
-# TODO apps/wavelet
 # TODO tutorials with generators
 
 package(
@@ -32,6 +31,9 @@ package(
 
 load(":bazel_helpers/halide_runtime_build_helpers.bzl", "gen_runtime_targets", "runtime_srcs")
 load("@llvm//:llvm_version.bzl", "get_llvm_version", "get_llvm_enabled_components")
+load("//:halide.bzl", "halide_library_config_settings")
+
+halide_library_config_settings()
 
 filegroup(
     name = "base_sources",
@@ -292,4 +294,12 @@ cc_library(
     visibility = ["//test:__subpackages__"],
     includes = ["src"],
     testonly = 1
+)
+
+cc_library(
+    name="internal_halide_generator_glue",
+    srcs = ["//tools:gengen"],
+    deps = [":language"],
+    visibility = ["//visibility:public"],
+    linkstatic=1
 )
