@@ -1,143 +1,126 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
-# load("//apps/support:simple_gen.bzl", "simple_gen")
+load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library")
 
-# TODO: many of these could be collapsed into a list comprehension;
-# I've replicated them all explicitly in the theory that for the tutorial
-# we're better off being explicit? Not sure
-cc_binary(
-    name = "lesson_01_basics",
-    srcs = ["lesson_01_basics.cpp"],
+# Many of the tutorials have trivial rules
+[cc_binary(
+    name = t,
+    srcs = ["%s.cpp" % t],
     deps = ["//:language"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts()
-)
+) for t in [
+    "lesson_01_basics",
+    "lesson_03_debugging_1",
+    "lesson_04_debugging_2",
+    "lesson_05_scheduling_1",
+    "lesson_06_realizing_over_shifted_domains",
+    "lesson_08_scheduling_2",
+    "lesson_11_cross_compilation",
+    "lesson_13_tuples",
+    "lesson_14_types",
+]]
 
-cc_binary(
-    name = "lesson_02_input_image",
-    srcs = ["lesson_02_input_image.cpp"],
-    deps = [
-        "//:language",
-        "//tools:halide_image_io"
-    ],
-    data = ["images/rgb.png"],
-    copts = halide_language_copts() + 
-            ['-DTUTORIAL_IMAGES_DIR=\\"%s/images/\\"' % PACKAGE_NAME],
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_03_debugging_1",
-    srcs = ["lesson_03_debugging_1.cpp"],
-    deps = ["//:language"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_04_debugging_2",
-    srcs = ["lesson_04_debugging_2.cpp"],
-    deps = ["//:language"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_05_scheduling_1",
-    srcs = ["lesson_05_scheduling_1.cpp"],
-    deps = ["//:language"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_06_realizing_over_shifted_domains",
-    srcs = ["lesson_06_realizing_over_shifted_domains.cpp"],
-    deps = ["//:language"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_07_multi_stage_pipelines",
-    srcs = ["lesson_07_multi_stage_pipelines.cpp"],
-    deps = [
-        "//:language",
-        "//tools:halide_image_io"
-    ],
-    data = ["images/rgb.png"],
-    copts = halide_language_copts() + 
-            ['-DTUTORIAL_IMAGES_DIR=\\"%s/images/\\"' % PACKAGE_NAME],
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_08_scheduling_2",
-    srcs = ["lesson_08_scheduling_2.cpp"],
-    deps = ["//:language"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_09_update_definitions",
+# Several tutorials also depend on //tools:halide_image_io and require setting TUTORIAL_IMAGES_DIR
+[cc_binary(
+    name = t,
     srcs = [
-        "lesson_09_update_definitions.cpp",
+        "%s.cpp" % t,
         "clock.h",
     ],
     deps = [
         "//:language",
         "//tools:halide_image_io"
     ],
-    data = ["images/gray.png"],
+    data = glob(["images/*.png"]),
     copts = halide_language_copts() + 
             ['-DTUTORIAL_IMAGES_DIR=\\"%s/images/\\"' % PACKAGE_NAME],
     linkopts = halide_language_linkopts()
-)
+) for t in [
+    "lesson_02_input_image",
+    "lesson_07_multi_stage_pipelines",
+    "lesson_09_update_definitions",
+    "lesson_12_using_the_gpu",
+]]
 
-# TODO lesson 10
-
+# For Lesson 10, we must build a binary, execute it, and depend on the output from that execution.
 cc_binary(
-    name = "lesson_11_cross_compilation",
-    srcs = ["lesson_11_cross_compilation.cpp"],
+    name = "lesson_10_aot_compilation_generate_gen",
+    srcs = ["lesson_10_aot_compilation_generate.cpp"],
     deps = ["//:language"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts()
 )
 
+genrule(
+    name = "lesson_10_aot_compilation_generate_exec",
+    tools = [":lesson_10_aot_compilation_generate_gen"],
+    outs = ["lesson_10_halide.a", "lesson_10_halide.h"],
+    cmd = "$(location :lesson_10_aot_compilation_generate_gen) $(@D)/"
+)
+
+cc_library(
+    name = "lesson_10_aot_compilation_generate_lib",
+    srcs = [":lesson_10_aot_compilation_generate_exec"],
+    hdrs = ["lesson_10_halide.h"],
+    includes = ["."],
+    linkstatic = 1
+)
+
 cc_binary(
-    name = "lesson_12_using_the_gpu",
+    name = "lesson_10_aot_compilation_run",
     srcs = [
-        "lesson_12_using_the_gpu.cpp",
-        "clock.h",
+        "lesson_10_aot_compilation_run.cpp",
     ],
     deps = [
-        "//:language",
-        "//tools:halide_image_io"
+        ":lesson_10_aot_compilation_generate_lib",
+        "//:language"
     ],
-    data = ["images/rgb.png"],
-    copts = halide_language_copts() + 
-            ['-DTUTORIAL_IMAGES_DIR=\\"%s/images/\\"' % PACKAGE_NAME],
-    linkopts = halide_language_linkopts()
-)
-
-cc_binary(
-    name = "lesson_13_tuples",
-    srcs = ["lesson_13_tuples.cpp"],
-    deps = ["//:language"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts()
 )
 
+# For Lesson 15, we manurally build and use a Generator.
+# (You normally would use the halide_library() rule to do this for you.)
 cc_binary(
-    name = "lesson_14_types",
-    srcs = ["lesson_14_types.cpp"],
-    deps = ["//:language"],
+    name = "lesson_15_generators",
+    srcs = ["lesson_15_generators.cpp"],
+    deps = [
+        "//:language",
+        "//tools:gengen",
+    ],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts()
 )
 
-# TODO lesson 15
-# TODO lesson 16
+sh_binary(
+    name = "lesson_15_generators_usage",
+    srcs = ["lesson_15_generators_usage.sh"],
+    data = [":lesson_15_generators"],
+    args = ["$(location :lesson_15_generators)"],
+)
+
+# For Lesson 16, we use halide_library() to simplify Generator usage
+[halide_library(
+    name = "brighten_%s" % layout,
+    srcs = ["lesson_16_rgb_generate.cpp"],
+    includes = ["."],
+    generator_args = "layout=%s" % layout,
+) for layout in [
+    "planar",
+    "interleaved",
+    "either",
+    "specialized",
+]]
+
+cc_binary(
+    name = "lesson_16_rgb_run",
+    srcs = ["lesson_16_rgb_run.cpp"],
+    deps = [
+        ":brighten_planar",
+        ":brighten_interleaved",
+        ":brighten_either",
+        ":brighten_specialized",
+    ],
+)
 
 
 

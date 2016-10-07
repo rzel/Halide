@@ -1,8 +1,8 @@
 # TODO: NaCl not supported at all
 # TODO: should "-c dbg" use the debug runtime?
-# TODO: test/generators
 # TODO: default-copts? default-linkopts?
 # TODO: platform detection for OpenGL linkage
+# TODO: build distrib, build install
 # TODO apps/HelloAndroid
 # TODO apps/HelloAndroidCamera2
 # TODO apps/HelloAndroidGL
@@ -23,7 +23,6 @@
 # TODO apps/resize
 # TODO apps/simd_op_check
 # TODO apps/templates
-# TODO tutorials with generators
 
 package(
     default_visibility = ["//visibility:private"],

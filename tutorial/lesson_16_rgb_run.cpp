@@ -93,10 +93,6 @@ int main(int argc, char **argv) {
     buffer_t interleaved_input = make_interleaved_rgb_image(1024, 768);
     buffer_t interleaved_output = make_interleaved_rgb_image(1024, 768);
 
-    // We'll now call the various functions we compiled and check the
-    // performance of each.
-    uint8_t offset = 1;
-
     // Start the clock
     tick(NULL);
 
