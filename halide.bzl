@@ -42,7 +42,7 @@ _HALIDE_TARGET_CONFIG_INFO = [
 ]
 
 
-_HALIDE_MULTITARGET_DEFAULTS = {
+_HALIDE_TARGET_MAP_DEFAULT = {
     "x86-64-linux": [
         "x86-64-linux-sse41-avx-avx2-fma",
         "x86-64-linux-sse41-avx",
@@ -64,7 +64,7 @@ _HALIDE_MULTITARGET_DEFAULTS = {
 }
 
 
-def halide_library_config_settings():
+def halide_config_settings():
     """Define the config_settings used internally by these build rules."""
     for base_target, cpu, android_cpu, ios_cpu in _HALIDE_TARGET_CONFIG_INFO:
         if android_cpu == None:
@@ -89,7 +89,7 @@ def halide_library_config_settings():
 
     # Config settings for Sanitizers (currently, only MSAN)
     native.config_setting(
-        name="halide_library_config_msan",
+        name="halide_config_msan",
         values={"compiler": "msan"},
         visibility=["//visibility:public"])
 
@@ -103,7 +103,7 @@ def _canonicalize_target(halide_target):
         fail("Multitarget may not be specified here")
     tokens = halide_target.split("-")
     if len(tokens) < 3:
-        fail("illegal target")
+        fail("Illegal target: %s" % halide_target)
     # rejoin the tokens with the features sorted
     return "-".join(tokens[0:3] + sorted(tokens[3:]))
 
@@ -124,7 +124,7 @@ def _config_setting_name(halide_target):
     halide_arch = tokens[0]
     halide_bits = tokens[1]
     halide_os = tokens[2]
-    return "halide_library_config_%s_%s_%s" % (halide_arch, halide_bits, halide_os)
+    return "halide_config_%s_%s_%s" % (halide_arch, halide_bits, halide_os)
 
 
 def _config_setting(halide_target):
@@ -228,14 +228,14 @@ _gengen = rule(
     output_to_genfiles=True)
 
 
-def _add_target_features(target, halide_target_features):
-  if "," in target:
-      fail("Cannot use multitarget here")
-  features = target.split("-")
-  for f in halide_target_features:
-      if f not in features:
-        features += [f]
-  return "-".join(features)
+def _add_target_features(target, features):
+    if "," in target:
+        fail("Cannot use multitarget here")
+    new_target = target.split("-")
+    for f in features:
+        if f and f not in new_target:
+            new_target += [f]
+    return "-".join(new_target)
 
 
 def _has_dupes(some_list):
@@ -246,15 +246,31 @@ def _has_dupes(some_list):
 def _select_multitarget(base_target,
                         halide_target_features,
                         halide_target_map):
-  # If halide_target_map specifies an alternate (possibly multitarget),
-  # replace it here. Otherwise default to the base target alone.
-  multitarget = halide_target_map.get(base_target, [base_target])
-  # Add the extra features (if any).
-  if halide_target_features:
-      multitarget = [_add_target_features(t, halide_target_features) for t in multitarget]
-  # Finally, canonicalize all targets
-  multitarget = [_canonicalize_target(t) for t in multitarget]
-  return multitarget
+    wildcard_target = halide_target_map.get("*")
+    if wildcard_target:
+        expected_base = "*"
+        targets = wildcard_target
+    else:
+        expected_base = base_target
+        targets = halide_target_map.get(base_target, [base_target])
+
+    multitarget = []
+    for t in targets:
+        if not t.startswith(expected_base):
+            fail("target %s does not start with expected target %s for halide_target_map" % (t, expected_base))
+        t = t[len(expected_base):]
+        if t.startswith("-"):
+            t = t[1:]
+        # Check for a "match all base targets" entry:
+        multitarget.append(_add_target_features(base_target, t.split("-")))
+    
+    # Add the extra features (if any).
+    if halide_target_features:
+        multitarget = [_add_target_features(t, halide_target_features) for t in multitarget]
+    
+    # Finally, canonicalize all targets
+    multitarget = [_canonicalize_target(t) for t in multitarget]
+    return multitarget
 
 
 
@@ -271,7 +287,7 @@ def halide_library(name,
                    debug_codegen_level=0,
                    trace_level=0,
                    halide_target_features=[],
-                   halide_target_map=_HALIDE_MULTITARGET_DEFAULTS,
+                   halide_target_map=_HALIDE_TARGET_MAP_DEFAULT,
                    extra_outputs=[],
                    includes=[]):
 
@@ -319,7 +335,7 @@ def halide_library(name,
             halide_target=multitarget,
             halide_function_name=function_name,
             sanitizer = select({
-                "//:halide_library_config_msan": "msan",
+                "//:halide_config_msan": "msan",
                 "//conditions:default": "",
             }),
             debug_codegen_level=debug_codegen_level,
@@ -339,8 +355,11 @@ def halide_library(name,
         halide_target_features=halide_target_features,
         halide_target_map=halide_target_map
     )
-    if len(header_target) != 1:
-        fail("header_target should always be exactly 1")
+    if len(header_target) > 1:
+        # This can happen if someone uses halide_target_map
+        # to force everything to be multitarget. In that
+        # case, just use the first entry.
+        header_target = [header_target[0]]
     _gengen(
         name="%s_header" % name,
         filename=name,

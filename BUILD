@@ -31,9 +31,9 @@ package(
 
 load(":bazel_helpers/halide_runtime_build_helpers.bzl", "gen_runtime_targets", "runtime_srcs")
 load("@llvm//:llvm_version.bzl", "get_llvm_version", "get_llvm_enabled_components")
-load("//:halide.bzl", "halide_library_config_settings")
+load("//:halide.bzl", "halide_config_settings")
 
-halide_library_config_settings()
+halide_config_settings()
 
 filegroup(
     name = "base_sources",
@@ -230,12 +230,12 @@ cc_library(
         ":runtime_components",
     ],
     copts = [
-        # This applies to the code generator, not the generated code.
-        "-Wframe-larger-than=131070",
         "-DCOMPILING_HALIDE",
         "-DLLVM_VERSION=" + get_llvm_version(),
         "-fno-rtti",
+        "-fvisibility-inlines-hidden",
         "-std=c++11",
+        "-Wframe-larger-than=131070",  # This applies to the code generator, not the generated code.
     ],
     defines = get_llvm_enabled_components() + [
         "WITH_METAL",
@@ -278,10 +278,10 @@ cc_library(
     linkopts = select({
         # There isn't (yet) a good way to make a config that is "Any Android",
         # so we're forced to specialize on all supported Android CPU configs.
-        "halide_config_armeabi-v7a": _ANDROID_RUNTIME_LINKOPTS,
-        "halide_config_arm64-v8a": _ANDROID_RUNTIME_LINKOPTS,
-        "halide_config_x86": _ANDROID_RUNTIME_LINKOPTS,
-        "halide_config_x86_64": _ANDROID_RUNTIME_LINKOPTS,
+        "//:halide_config_arm_32_android": _ANDROID_RUNTIME_LINKOPTS,
+        "//:halide_config_arm_64_android": _ANDROID_RUNTIME_LINKOPTS,
+        "//:halide_config_x86_32_android": _ANDROID_RUNTIME_LINKOPTS,
+        "//:halide_config_x86_64_android": _ANDROID_RUNTIME_LINKOPTS,
         "//conditions:default": _DEFAULT_RUNTIME_LINKOPTS,
     }),
     visibility = ["//visibility:public"],

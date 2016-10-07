@@ -10,9 +10,9 @@
 #include "HalideRuntimeOpenCL.h"
 #endif
 
-#include "gpu_object_lifetime.h"
+#include "test/common/gpu_object_lifetime.h"
 
-#include "../common/gpu_object_lifetime.h"
+#include "gpu_object_lifetime.h"
 
 using namespace Halide;
 
