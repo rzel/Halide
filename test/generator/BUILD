@@ -227,7 +227,7 @@ cc_test(
     srcs = ["gpu_object_lifetime_aottest.cpp"],
     deps = [
         ":gpu_object_lifetime",
-        "//test/common:gpu_object_lifetime",
+        "//test/common:gpu_object_lifetime_tracker",
         "//:language",
     ],
     copts = halide_language_copts(),

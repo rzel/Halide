@@ -11,8 +11,8 @@ filegroup(
 )
 
 cc_library(
-    name = "gpu_object_lifetime",
-    srcs = ["gpu_object_lifetime.h"],
+    name = "gpu_object_lifetime_tracker",
+    srcs = ["gpu_object_lifetime_tracker.h"],
     visibility = ["//test:__subpackages__"]
 )
 
