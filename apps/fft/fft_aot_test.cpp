@@ -2,10 +2,10 @@
 #include <iostream>
 #include <iomanip>
 
-#include "generated/fft_forward_r2c.h"
-#include "generated/fft_inverse_c2r.h"
-#include "generated/fft_forward_c2c.h"
-#include "generated/fft_inverse_c2c.h"
+#include "fft_forward_r2c.h"
+#include "fft_inverse_c2r.h"
+#include "fft_forward_c2c.h"
+#include "fft_inverse_c2c.h"
 
 namespace {
 const float kPi = 3.14159265358979310000f;

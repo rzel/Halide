@@ -36,7 +36,7 @@ generated/fft_inverse_c2c.o: fft_generator.cpp fft.cpp fft.h
 	$(HALIDE_SRC_PATH)/tools/gengen.sh -c "c++ -I." -l $(LIB_HALIDE) -e o,h -o generated -s fft_generator.cpp -s fft.cpp -f fft_inverse_c2c target=host direction=frequency_to_samples size0=16 size1=16 input_number_type=complex output_number_type=complex
 
 fft_aot_test: fft_aot_test.cpp fft.cpp fft_generator.cpp fft.h generated/fft_forward_r2c.o generated/fft_inverse_c2r.o generated/fft_forward_c2c.o generated/fft_inverse_c2c.o
-	$(CXX) fft_aot_test.cpp generated/fft_forward_r2c.o generated/fft_inverse_c2r.o generated/fft_forward_c2c.o generated/fft_inverse_c2c.o -o fft_aot_test
+	$(CXX) -Igenerated fft_aot_test.cpp generated/fft_forward_r2c.o generated/fft_inverse_c2r.o generated/fft_forward_c2c.o generated/fft_inverse_c2c.o -o fft_aot_test
 
 clean:
 	rm -f bench_fft c2c.html r2c.html c2r.html
