@@ -4,8 +4,7 @@ load("//test/common:cc_failure_test.bzl", "cc_failure_test")
 [cc_failure_test(
     name = "%s" % test[0:-4],
     srcs = [test],
-    deps = ["//:language"],
     copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
+    linkopts = halide_language_linkopts(),
+    deps = ["//:language"],
 ) for test in glob(["*.cpp"])]
-

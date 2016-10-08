@@ -6,7 +6,7 @@ halide_library(
         "daubechies_constants.h",
         "daubechies_x_generator.cpp",
     ],
-    includes=["."],
+    includes = ["."],
 )
 
 halide_library(
@@ -15,7 +15,7 @@ halide_library(
         "daubechies_constants.h",
         "haar_x_generator.cpp",
     ],
-    includes=["."],
+    includes = ["."],
 )
 
 halide_library(
@@ -24,7 +24,7 @@ halide_library(
         "daubechies_constants.h",
         "inverse_daubechies_x_generator.cpp",
     ],
-    includes=["."],
+    includes = ["."],
 )
 
 halide_library(
@@ -33,7 +33,7 @@ halide_library(
         "daubechies_constants.h",
         "inverse_haar_x_generator.cpp",
     ],
-    includes=["."],
+    includes = ["."],
 )
 
 cc_binary(
@@ -44,8 +44,8 @@ cc_binary(
         ":haar_x",
         ":inverse_daubechies_x",
         ":inverse_haar_x",
-        "//tools:halide_image_io"
-    ]
+        "//tools:halide_image_io",
+    ],
 )
 
 sh_test(
@@ -57,7 +57,6 @@ sh_test(
     ],
     data = [
         ":wavelet",
-        "//apps/images:gray.png"
+        "//apps/images:gray.png",
     ],
 )
-

@@ -4,9 +4,9 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hali
 [cc_binary(
     name = t,
     srcs = ["%s.cpp" % t],
-    deps = ["//:language"],
     copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
+    linkopts = halide_language_linkopts(),
+    deps = ["//:language"],
 ) for t in [
     "lesson_01_basics",
     "lesson_03_debugging_1",
@@ -26,14 +26,15 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hali
         "%s.cpp" % t,
         "clock.h",
     ],
-    deps = [
-        "//:language",
-        "//tools:halide_image_io"
+    copts = halide_language_copts() + [
+        "-DTUTORIAL_IMAGES_DIR=\\\"%s/images/\\\"" % PACKAGE_NAME,
     ],
     data = glob(["images/*.png"]),
-    copts = halide_language_copts() + 
-            ['-DTUTORIAL_IMAGES_DIR=\\"%s/images/\\"' % PACKAGE_NAME],
-    linkopts = halide_language_linkopts()
+    linkopts = halide_language_linkopts(),
+    deps = [
+        "//:language",
+        "//tools:halide_image_io",
+    ],
 ) for t in [
     "lesson_02_input_image",
     "lesson_07_multi_stage_pipelines",
@@ -45,16 +46,19 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hali
 cc_binary(
     name = "lesson_10_aot_compilation_generate_gen",
     srcs = ["lesson_10_aot_compilation_generate.cpp"],
-    deps = ["//:language"],
     copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
+    linkopts = halide_language_linkopts(),
+    deps = ["//:language"],
 )
 
 genrule(
     name = "lesson_10_aot_compilation_generate_exec",
+    outs = [
+        "lesson_10_halide.a",
+        "lesson_10_halide.h",
+    ],
+    cmd = "$(location :lesson_10_aot_compilation_generate_gen) $(@D)/",
     tools = [":lesson_10_aot_compilation_generate_gen"],
-    outs = ["lesson_10_halide.a", "lesson_10_halide.h"],
-    cmd = "$(location :lesson_10_aot_compilation_generate_gen) $(@D)/"
 )
 
 cc_library(
@@ -62,7 +66,7 @@ cc_library(
     srcs = [":lesson_10_aot_compilation_generate_exec"],
     hdrs = ["lesson_10_halide.h"],
     includes = ["."],
-    linkstatic = 1
+    linkstatic = 1,
 )
 
 cc_binary(
@@ -70,12 +74,12 @@ cc_binary(
     srcs = [
         "lesson_10_aot_compilation_run.cpp",
     ],
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts(),
     deps = [
         ":lesson_10_aot_compilation_generate_lib",
-        "//:language"
+        "//:language",
     ],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
 )
 
 # For Lesson 15, we manurally build and use a Generator.
@@ -83,27 +87,27 @@ cc_binary(
 cc_binary(
     name = "lesson_15_generators",
     srcs = ["lesson_15_generators.cpp"],
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts(),
     deps = [
         "//:language",
         "//tools:gengen",
     ],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts()
 )
 
 sh_binary(
     name = "lesson_15_generators_usage",
     srcs = ["lesson_15_generators_usage.sh"],
-    data = [":lesson_15_generators"],
     args = ["$(location :lesson_15_generators)"],
+    data = [":lesson_15_generators"],
 )
 
 # For Lesson 16, we use halide_library() to simplify Generator usage
 [halide_library(
     name = "brighten_%s" % layout,
     srcs = ["lesson_16_rgb_generate.cpp"],
-    includes = ["."],
     generator_args = "layout=%s" % layout,
+    includes = ["."],
 ) for layout in [
     "planar",
     "interleaved",
@@ -115,12 +119,9 @@ cc_binary(
     name = "lesson_16_rgb_run",
     srcs = ["lesson_16_rgb_run.cpp"],
     deps = [
-        ":brighten_planar",
-        ":brighten_interleaved",
         ":brighten_either",
+        ":brighten_interleaved",
+        ":brighten_planar",
         ":brighten_specialized",
     ],
 )
-
-
-

@@ -5,4 +5,3 @@ cc_binary(
         "inconsolata.h",
     ],
 )
-

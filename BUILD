@@ -68,7 +68,7 @@ filegroup(
             "src/HalideFooter.h",
             "src/LLVM_Headers.h",
         ],
-    )
+    ),
 )
 
 filegroup(
@@ -82,10 +82,13 @@ filegroup(
 
 genrule(
     name = "build_single_language_header",
-    srcs = [":language_headers", "src/HalideFooter.h"],
+    srcs = [
+        ":language_headers",
+        "src/HalideFooter.h",
+    ],
     outs = ["Halide.h"],
-    tools = [ "//tools:build_halide_h" ],
     cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(location src/HalideFooter.h) > $@",
+    tools = ["//tools:build_halide_h"],
 )
 
 runtime_cpp_components = [
@@ -240,10 +243,10 @@ cc_library(
         "WITH_METAL",
         "WITH_OPENCL",
         "WITH_OPENGL",
-        "WITH_RENDERSCRIPT"
+        "WITH_RENDERSCRIPT",
     ],
-    deps = ["@llvm//:llvm"],
     linkstatic = 1,
+    deps = ["@llvm//:llvm"],
 )
 
 cc_library(
@@ -289,16 +292,16 @@ cc_library(
 # TODO: should this be moved to a BUILD file in src/runtime?
 cc_library(
     name = "mini_opengl",
+    testonly = 1,
     hdrs = ["src/runtime/mini_opengl.h"],
-    visibility = ["//test:__subpackages__"],
     includes = ["src"],
-    testonly = 1
+    visibility = ["//test:__subpackages__"],
 )
 
 cc_library(
-    name="internal_halide_generator_glue",
+    name = "internal_halide_generator_glue",
     srcs = ["//tools:gengen"],
-    deps = [":language"],
+    linkstatic = 1,
     visibility = ["//visibility:public"],
-    linkstatic=1
+    deps = [":language"],
 )

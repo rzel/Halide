@@ -2,27 +2,27 @@ cc_library(
     name = "halide_image_info",
     srcs = ["halide_image_info.h"],
     includes = ["."],
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "halide_image_io",
     srcs = ["halide_image_io.h"],
-    deps = ["@png_archive//:png"],
     includes = ["."],
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
+    deps = ["@png_archive//:png"],
 )
 
 cc_binary(
     name = "build_halide_h",
     srcs = ["build_halide_h.cpp"],
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 
 cc_binary(
     name = "bitcode2cpp",
     srcs = ["bitcode2cpp.cpp"],
-    visibility = ["//visibility:public"]
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
