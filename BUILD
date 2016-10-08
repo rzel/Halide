@@ -195,35 +195,6 @@ filegroup(
     srcs = runtime_srcs(runtime_cpp_components, runtime_ll_components, runtime_nvidia_bitcode_components),
 )
 
-# These configs match when building with --config=android_XXX
-config_setting(
-    name = "halide_config_armeabi-v7a",
-    values = {
-        "android_cpu": "armeabi-v7a",
-    },
-)
-
-config_setting(
-    name = "halide_config_arm64-v8a",
-    values = {
-        "android_cpu": "arm64-v8a",
-    },
-)
-
-config_setting(
-    name = "halide_config_x86",
-    values = {
-        "android_cpu": "x86",
-    },
-)
-
-config_setting(
-    name = "halide_config_x86_64",
-    values = {
-        "android_cpu": "x86_64",
-    },
-)
-
 cc_library(
     name = "lib_halide",
     srcs = [
