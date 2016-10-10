@@ -72,7 +72,10 @@ genrule(
         "src/HalideFooter.h",
     ],
     outs = ["Halide.h"],
-    cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(locations :runtime_headers) $(location src/HalideFooter.h) > $@",
+    # :runtime_headers needs to be made available to the sandbox,
+    # but we only want to use the ones referenced indirectly by
+    # :language_headers.
+    cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(location src/HalideFooter.h) > $@",
     tools = ["//tools:build_halide_h"],
 )
 
