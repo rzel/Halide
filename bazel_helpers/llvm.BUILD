@@ -22,6 +22,7 @@ cc_library(
         "include/llvm/**/*.h",
         "include/llvm-c/**/*.h",
         "build_include/llvm/**/*.h",
+        "build_include/llvm/**/*.def",
     ]),
     # srcs = get_llvm_static_libs(),
     linkopts = get_llvm_linkopts(),
