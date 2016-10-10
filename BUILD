@@ -264,6 +264,15 @@ cc_library(
     visibility = ["//test:__subpackages__"],
 )
 
+# TODO: should this be moved to a BUILD file in src/runtime?
+cc_library(
+    name = "device_interface",
+    testonly = 1,
+    hdrs = ["src/runtime/device_interface.h"],
+    includes = ["src"],
+    visibility = ["//test:__subpackages__"],
+)
+
 cc_library(
     name = "internal_halide_generator_glue",
     srcs = ["//tools:gengen"],

@@ -176,7 +176,6 @@ halide_library(
     "acquire_release",
     "argvcall",
     "can_use_target",
-    "cleanup_on_error",
     "cxx_mangling",
     "embed_image",
     "error_codes",
@@ -196,6 +195,18 @@ halide_library(
 ]]
 
 # AOT tests that have multiple deps, etc
+cc_test(
+    name = "cleanup_on_error_aottest",
+    srcs = ["cleanup_on_error_aottest.cpp"],
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts(),
+    deps = [
+        "//:device_interface",
+        ":cleanup_on_error",
+        "//:language",
+    ],
+)
+
 cc_test(
     name = "cxx_mangling_define_extern_aottest",
     srcs = ["cxx_mangling_define_extern_aottest.cpp"],
