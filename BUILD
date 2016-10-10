@@ -35,24 +35,8 @@ load("//:halide.bzl", "halide_config_settings")
 halide_config_settings()
 
 filegroup(
-    name = "base_sources",
-    srcs = glob(
-        [
-            "src/*.cpp",
-            "src/BitWriter_3_2/*.cpp",
-        ],
-    ),
-)
-
-filegroup(
-    name = "internal_headers",
-    srcs = glob(
-        [
-            "src/*.h",
-            "src/BitWriter_3_2/*.h",
-            "src/runtime/Halide*.h",
-        ],
-    ),
+    name = "runtime_headers",
+    srcs = glob(["src/runtime/Halide*.h"]),
 )
 
 filegroup(
@@ -84,10 +68,11 @@ genrule(
     name = "build_single_language_header",
     srcs = [
         ":language_headers",
+        ":runtime_headers",
         "src/HalideFooter.h",
     ],
     outs = ["Halide.h"],
-    cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(location src/HalideFooter.h) > $@",
+    cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(locations :runtime_headers) $(location src/HalideFooter.h) > $@",
     tools = ["//tools:build_halide_h"],
 )
 
@@ -197,9 +182,16 @@ filegroup(
 
 cc_library(
     name = "lib_halide",
-    srcs = [
-        ":base_sources",
-        ":internal_headers",
+    srcs = glob(
+        [
+            "src/*.cpp",
+            "src/BitWriter_3_2/*.cpp",
+            "src/*.h",
+            "src/BitWriter_3_2/*.h",
+            "src/runtime/Halide*.h",
+        ],
+    ) + [
+        ":runtime_headers",
         ":runtime_components",
     ],
     copts = [
@@ -246,7 +238,7 @@ _DEFAULT_RUNTIME_LINKOPTS = [
 # plus definitions of functions that can be replaced by hosting applications.
 cc_library(
     name = "runtime",
-    hdrs = glob(["src/runtime/Halide*.h"]),
+    hdrs = [":runtime_headers"],
     includes = ["src/runtime"],
     linkopts = select({
         # There isn't (yet) a good way to make a config that is "Any Android",
