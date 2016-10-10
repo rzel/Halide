@@ -3,6 +3,7 @@ load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hal
 cc_library(
     name = "extended_buffer_t_common",
     srcs = ["extended_buffer_t_common.h"],
+    includes = ["."],
 )
 
 # ----------------- Generators
