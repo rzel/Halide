@@ -49,6 +49,7 @@ halide_library(
     halide_target_features = ["user_context"],
     includes = ["."],
     namespace = "HalideTest",
+    filter_deps = [":cxx_mangling"],
 )
 
 halide_library(
@@ -177,6 +178,7 @@ halide_library(
     "argvcall",
     "can_use_target",
     "cxx_mangling",
+    "cxx_mangling_define_extern",
     "embed_image",
     "error_codes",
     "example",
@@ -203,18 +205,6 @@ cc_test(
     deps = [
         "//:device_interface",
         ":cleanup_on_error",
-        "//:language",
-    ],
-)
-
-cc_test(
-    name = "cxx_mangling_define_extern_aottest",
-    srcs = ["cxx_mangling_define_extern_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
-    deps = [
-        ":cxx_mangling",
-        ":cxx_mangling_define_extern",
         "//:language",
     ],
 )
