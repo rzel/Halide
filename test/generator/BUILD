@@ -181,7 +181,6 @@ halide_library(
     "embed_image",
     "error_codes",
     "example",
-    "extended_buffer_t",
     "float16_t",
     "gpu_only",
     "image_from_array",
@@ -217,6 +216,18 @@ cc_test(
     deps = [
         ":metadata_tester",
         ":metadata_tester_ucon",
+        "//:language",
+    ],
+)
+
+cc_test(
+    name = "extended_buffer_t_aottest",
+    srcs = ["extended_buffer_t_aottest.cpp"],
+    copts = halide_language_copts(),
+    linkopts = halide_language_linkopts(),
+    deps = [
+        ":extended_buffer_t",
+        ":extended_buffer_t_common",
         "//:language",
     ],
 )
