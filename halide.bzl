@@ -10,15 +10,34 @@ def halide_language_copts():
 
 
 def halide_language_linkopts():
-  return [
-    # "-Wl,-stack_size", "-Wl,1000000"  # TODO OSX ONLY
-  ]
+  _default_opts = []
+  _osx_opts = ["-Wl,-stack_size", "-Wl,1000000"]
+  return select({
+      _config_setting("arm-32-ios"): _osx_opts,
+      _config_setting("arm-64-ios"): _osx_opts,
+      _config_setting("x86-32-osx"): _osx_opts,
+      _config_setting("x86-64-osx"): _osx_opts,
+      "//conditions:default": _default_opts,
+  })
 
 
 def halide_runtime_linkopts():
   return [
     "-lpthread",
   ]
+
+
+def halide_opengl_linkopts():
+  _linux_opts = ["-lGL"]
+  _osx_opts = ["-framework OpenGL"]
+  return select({
+      _config_setting("arm-32-ios"): _osx_opts,
+      _config_setting("arm-64-ios"): _osx_opts,
+      _config_setting("x86-32-osx"): _osx_opts,
+      _config_setting("x86-64-osx"): _osx_opts,
+      # TODO: this is wrong for (e.g.) Windows and will need further specialization.
+      "//conditions:default": _linux_opts,
+  })
 
 
 # (halide-target-base, cpu, android-cpu, ios-cpu)
