@@ -11,7 +11,7 @@ def halide_language_copts():
 
 def halide_language_linkopts():
     return [
-        "-Wl,-stack_size", "-Wl,1000000"  # TODO OSX ONLY
+        # "-Wl,-stack_size", "-Wl,1000000"  # TODO OSX ONLY
     ]
 
 

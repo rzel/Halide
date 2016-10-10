@@ -35,5 +35,5 @@ def get_llvm_linkopts():
         for lib in _static_libs_map[c]:
             if not lib in static_libs:
                 static_libs.append(lib)
-    return %{llvm_ldflags} + static_libs
+    return %{llvm_ldflags} + %{llvm_system_libs} + static_libs
 
