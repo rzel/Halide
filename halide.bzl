@@ -17,7 +17,7 @@ def halide_language_linkopts():
 
 def halide_runtime_linkopts():
   return [
-    "-lpthreads",
+    "-lpthread",
   ]
 
 
