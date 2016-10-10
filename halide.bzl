@@ -1,5 +1,5 @@
-# copts requires when depending on the :language target
 def halide_language_copts():
+  # TODO: this is wrong for (e.g.) Windows and will need further specialization.
   return [
     "$(STACK_FRAME_UNLIMITED)",
     "-fno-rtti",
@@ -13,22 +13,22 @@ def halide_language_linkopts():
   _default_opts = []
   _osx_opts = ["-Wl,-stack_size", "-Wl,1000000"]
   return select({
-      _config_setting("arm-32-ios"): _osx_opts,
-      _config_setting("arm-64-ios"): _osx_opts,
-      _config_setting("x86-32-osx"): _osx_opts,
-      _config_setting("x86-64-osx"): _osx_opts,
+      "//:halide_host_config_darwin": _osx_opts,
+      "//:halide_host_config_darwin_x86_64": _osx_opts,
+      # TODO: this is wrong for (e.g.) Windows and will need further specialization.
       "//conditions:default": _default_opts,
   })
 
 
 def halide_runtime_linkopts():
+  # TODO: this is wrong for (e.g.) Windows and will need further specialization.
   return [
     "-lpthread",
   ]
 
 
 def halide_opengl_linkopts():
-  _linux_opts = ["-lGL"]
+  _default_opts = ["-lGL"]
   _osx_opts = ["-framework OpenGL"]
   return select({
       _config_setting("arm-32-ios"): _osx_opts,
@@ -36,28 +36,28 @@ def halide_opengl_linkopts():
       _config_setting("x86-32-osx"): _osx_opts,
       _config_setting("x86-64-osx"): _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
-      "//conditions:default": _linux_opts,
+      "//conditions:default": _default_opts,
   })
 
 
-# (halide-target-base, cpu, android-cpu, ios-cpu)
+# (halide-target-base,  cpu,   android-cpu,   ios-cpu)
 _HALIDE_TARGET_CONFIG_INFO = [
   # Android
-  ("arm-32-android", None, "armeabi-v7a", None),
-  ("arm-64-android", None, "arm64-v8a", None),
-  ("x86-32-android", None, "x86", None),
-  ("x86-64-android", None, "x86_64", None),
-  # iOS
-  ("arm-32-ios", None, None, "armv7"),
-  ("arm-64-ios", None, None, "arm64"),
-  # OSX
-  ("x86-32-osx", None, None, "x86_32"),
-  ("x86-64-osx", None, None, "x86_64"),
-  # Linux
-  ("arm-64-linux", "arm", None, None),
-  ("powerpc-64-linux", "ppc", None, None),
-  ("x86-64-linux", "k8", None, None),
-  ("x86-32-linux", "piii", None, None),
+  ("arm-32-android",    None,  "armeabi-v7a", None),
+  ("arm-64-android",    None,  "arm64-v8a",   None),
+  ("x86-32-android",    None,  "x86",         None),
+  ("x86-64-android",    None,  "x86_64",      None),
+  # iOS    
+  ("arm-32-ios",        None,  None,          "armv7"),
+  ("arm-64-ios",        None,  None,          "arm64"),
+  # OSX    
+  ("x86-32-osx",        None,  None,          "x86_32"),
+  ("x86-64-osx",        None,  None,          "x86_64"),
+  # Linux 
+  ("arm-64-linux",     "arm",  None,          None),
+  ("powerpc-64-linux", "ppc",  None,          None),
+  ("x86-64-linux",     "k8",   None,          None),
+  ("x86-32-linux",     "piii", None,          None),
   # TODO: add conditions appropriate for other targets/cpus: Windows, etc.
 ]
 
@@ -83,9 +83,23 @@ _HALIDE_TARGET_MAP_DEFAULT = {
   ],
 }
 
+def _halide_host_config_settings():
+  # TODO: this is incomplete for (e.g.) Windows and will need further specialization.
+  _host_cpus = [
+    "darwin",
+    "darwin_x86_64",
+  ]
+  for host_cpu in _host_cpus:
+    native.config_setting(
+      name="halide_host_config_%s" % host_cpu,
+      values={"host_cpu" : host_cpu},
+      visibility=["//visibility:public"]
+    )
+
 
 def halide_config_settings():
   """Define the config_settings used internally by these build rules."""
+  _halide_host_config_settings()
   for base_target, cpu, android_cpu, ios_cpu in _HALIDE_TARGET_CONFIG_INFO:
     if android_cpu == None:
       android_cpu = "armeabi"
