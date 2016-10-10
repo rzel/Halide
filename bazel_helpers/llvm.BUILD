@@ -7,17 +7,16 @@ load(":llvm_version.bzl", "get_llvm_linkopts")
 
 filegroup(
     name = "llvm-as",
-    srcs = ["bin/llvm-as"]
+    srcs = ["bin/llvm-as"],
 )
 
 filegroup(
     name = "clang",
-    srcs = ["bin/clang"]
+    srcs = ["bin/clang"],
 )
 
 cc_library(
     name = "llvm",
-    includes = ["include", "build_include"],
     hdrs = glob([
         "include/llvm/**/*.def",
         "include/llvm/**/*.h",
@@ -26,7 +25,11 @@ cc_library(
         "build_include/llvm/**/*.def",
         "build_include/llvm/**/*.gen",
     ]),
+    includes = [
+        "build_include",
+        "include",
+    ],
     # srcs = get_llvm_static_libs(),
     linkopts = get_llvm_linkopts(),
-    linkstatic = 1
+    linkstatic = 1,
 )

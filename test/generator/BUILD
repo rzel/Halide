@@ -46,10 +46,10 @@ halide_library(
 halide_library(
     name = "cxx_mangling_define_extern",
     srcs = ["cxx_mangling_define_extern_generator.cpp"],
+    filter_deps = [":cxx_mangling"],  # referenced via define_extern
     halide_target_features = ["user_context"],
     includes = ["."],
     namespace = "HalideTest",
-    filter_deps = [":cxx_mangling"],  # referenced via define_extern
 )
 
 halide_library(
@@ -97,23 +97,23 @@ halide_library(
 halide_library(
     name = "nested_externs_inner",
     srcs = ["nested_externs_generator.cpp"],
-    generator_name = "nested_externs_inner",
-    includes = ["."],
     filter_deps = [
         ":nested_externs_combine",
         ":nested_externs_leaf",
     ],
+    generator_name = "nested_externs_inner",
+    includes = ["."],
 )
 
 halide_library(
     name = "nested_externs_root",
     srcs = ["nested_externs_generator.cpp"],
-    generator_name = "nested_externs_root",
-    includes = ["."],
     filter_deps = [
         ":nested_externs_combine",
         ":nested_externs_inner",
     ],
+    generator_name = "nested_externs_root",
+    includes = ["."],
 )
 
 halide_library(
@@ -223,8 +223,8 @@ cc_test(
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
     deps = [
-        "//:device_interface",
         ":cleanup_on_error",
+        "//:device_interface",
         "//:language",
     ],
 )

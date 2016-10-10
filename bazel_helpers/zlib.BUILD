@@ -28,10 +28,10 @@ cc_library(
         "zutil.h",
     ],
     hdrs = ["zlib.h"],
-    includes = ["."],
     copts = [
         "-Wno-implicit-function-declaration",
-        "-Wno-shift-negative-value"
+        "-Wno-shift-negative-value",
     ],
-    visibility = ["//visibility:public"]
+    includes = ["."],
+    visibility = ["//visibility:public"],
 )
