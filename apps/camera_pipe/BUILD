@@ -1,4 +1,5 @@
 load("//apps/support:simple_gen.bzl", "simple_gen")
+load("//:halide.bzl", "halide_runtime_linkopts")
 
 simple_gen(
     name = "camera_pipe",
@@ -15,6 +16,7 @@ cc_test(
         "fcam/Demosaic_ARM.h",
         "process.cpp",
     ],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":camera_pipe",
         "//:runtime",

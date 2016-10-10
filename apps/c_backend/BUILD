@@ -1,4 +1,4 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
+load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts")
 
 cc_binary(
     name = "pipeline_gen",
@@ -29,6 +29,7 @@ cc_library(
 cc_test(
     name = "run",
     srcs = ["run.cpp"],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":pipeline",
         "//:runtime",
@@ -64,6 +65,7 @@ cc_library(
 cc_test(
     name = "run_cpp",
     srcs = ["run_cpp.cpp"],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":pipeline_cpp",
         "//:runtime",

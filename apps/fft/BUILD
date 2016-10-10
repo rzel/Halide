@@ -1,4 +1,4 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library")
+load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 # TODO: add WITH_FFTW support
 cc_binary(
@@ -66,6 +66,7 @@ halide_library(
 cc_test(
     name = "fft_aot_test",
     srcs = ["fft_aot_test.cpp"],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":fft_forward_c2c",
         ":fft_forward_r2c",

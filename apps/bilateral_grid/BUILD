@@ -1,4 +1,5 @@
 load("//apps/support:simple_gen.bzl", "simple_gen")
+load("//:halide.bzl", "halide_runtime_linkopts")
 
 simple_gen(
     name = "bilateral_grid",
@@ -9,6 +10,7 @@ simple_gen(
 cc_binary(
     name = "filter",
     srcs = ["filter.cpp"],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":bilateral_grid",
         "//:runtime",

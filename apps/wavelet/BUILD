@@ -1,4 +1,4 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library")
+load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 halide_library(
     name = "daubechies_x",
@@ -39,6 +39,7 @@ halide_library(
 cc_binary(
     name = "wavelet",
     srcs = ["wavelet.cpp"],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":daubechies_x",
         ":haar_x",

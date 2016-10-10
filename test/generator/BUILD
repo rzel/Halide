@@ -1,4 +1,4 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library")
+load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 cc_library(
     name = "extended_buffer_t_common",
@@ -187,8 +187,7 @@ halide_library(
 [cc_test(
     name = "%s_aottest" % test,
     srcs = ["%s_aottest.cpp" % test],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":%s" % test,
         "//:language",
@@ -220,8 +219,7 @@ halide_library(
 cc_test(
     name = "cleanup_on_error_aottest",
     srcs = ["cleanup_on_error_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":cleanup_on_error",
         "//:device_interface",
@@ -232,8 +230,7 @@ cc_test(
 cc_test(
     name = "metadata_tester_aottest",
     srcs = ["metadata_tester_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":metadata_tester",
         ":metadata_tester_ucon",
@@ -244,8 +241,7 @@ cc_test(
 cc_test(
     name = "extended_buffer_t_aottest",
     srcs = ["extended_buffer_t_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":extended_buffer_t",
         ":extended_buffer_t_common",
@@ -256,8 +252,7 @@ cc_test(
 cc_test(
     name = "gpu_object_lifetime_aottest",
     srcs = ["gpu_object_lifetime_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":gpu_object_lifetime",
         "//:language",
@@ -268,8 +263,7 @@ cc_test(
 cc_test(
     name = "nested_externs_aottest",
     srcs = ["nested_externs_aottest.cpp"],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":nested_externs_root",
         "//:language",
@@ -279,8 +273,7 @@ cc_test(
 [cc_test(
     name = "tiled_blur%s_aottest" % suffix,
     srcs = ["tiled_blur%s_aottest.cpp" % suffix],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":tiled_blur%s" % suffix,
         ":tiled_blur_blur%s" % suffix,

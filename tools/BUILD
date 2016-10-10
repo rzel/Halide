@@ -13,6 +13,13 @@ cc_library(
     deps = ["@png_archive//:png"],
 )
 
+cc_library(
+    name = "halide_malloc_trace",
+    srcs = ["halide_malloc_trace.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
 cc_binary(
     name = "build_halide_h",
     srcs = ["build_halide_h.cpp"],

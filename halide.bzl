@@ -15,9 +15,10 @@ def halide_language_linkopts():
   ]
 
 
-# copts requires when depending on the :runtime target
-def halide_runtime_copts():
-  return []
+def halide_runtime_linkopts():
+  return [
+    "-lpthreads",
+  ]
 
 
 # (halide-target-base, cpu, android-cpu, ios-cpu)
