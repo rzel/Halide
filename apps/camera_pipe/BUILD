@@ -22,6 +22,7 @@ cc_test(
         "//:runtime",
         "//apps/support:benchmark",
         "//tools:halide_image_io",
+        "//tools:halide_malloc_trace",
     ],
 )
 

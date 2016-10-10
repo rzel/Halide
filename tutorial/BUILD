@@ -1,4 +1,4 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library")
+load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts", "halide_library")
 
 # Many of the tutorials have trivial rules
 [cc_binary(
@@ -74,8 +74,7 @@ cc_binary(
     srcs = [
         "lesson_10_aot_compilation_run.cpp",
     ],
-    copts = halide_language_copts(),
-    linkopts = halide_language_linkopts(),
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":lesson_10_aot_compilation_generate_lib",
         "//:language",
@@ -117,11 +116,15 @@ sh_binary(
 
 cc_binary(
     name = "lesson_16_rgb_run",
-    srcs = ["lesson_16_rgb_run.cpp"],
+    srcs = [
+        "lesson_16_rgb_run.cpp",
+        "clock.h",
+    ],
     deps = [
         ":brighten_either",
         ":brighten_interleaved",
         ":brighten_planar",
         ":brighten_specialized",
     ],
+    linkopts = halide_runtime_linkopts(),
 )
