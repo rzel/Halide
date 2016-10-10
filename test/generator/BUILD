@@ -49,7 +49,7 @@ halide_library(
     halide_target_features = ["user_context"],
     includes = ["."],
     namespace = "HalideTest",
-    filter_deps = [":cxx_mangling"],
+    filter_deps = [":cxx_mangling"],  # referenced via define_extern
 )
 
 halide_library(
@@ -90,11 +90,31 @@ halide_library(
     generator_name = "nested_externs_%s" % gen_name,
     includes = ["."],
 ) for gen_name in [
-    "root",
-    "inner",
     "combine",
     "leaf",
 ]]
+
+halide_library(
+    name = "nested_externs_inner",
+    srcs = ["nested_externs_generator.cpp"],
+    generator_name = "nested_externs_inner",
+    includes = ["."],
+    filter_deps = [
+        ":nested_externs_combine",
+        ":nested_externs_leaf",
+    ],
+)
+
+halide_library(
+    name = "nested_externs_root",
+    srcs = ["nested_externs_generator.cpp"],
+    generator_name = "nested_externs_root",
+    includes = ["."],
+    filter_deps = [
+        ":nested_externs_combine",
+        ":nested_externs_inner",
+    ],
+)
 
 halide_library(
     name = "pyramid",
@@ -251,9 +271,6 @@ cc_test(
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
     deps = [
-        ":nested_externs_combine",
-        ":nested_externs_inner",
-        ":nested_externs_leaf",
         ":nested_externs_root",
         "//:language",
     ],
