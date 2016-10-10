@@ -1,5 +1,10 @@
 load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts", "halide_library")
 
+cc_library(
+    name = "clock",
+    hdrs = ["clock.h"],
+)
+
 # Many of the tutorials have trivial rules
 [cc_binary(
     name = t,
@@ -24,7 +29,6 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hali
     name = t,
     srcs = [
         "%s.cpp" % t,
-        "clock.h",
     ],
     copts = halide_language_copts() + [
         "-DTUTORIAL_IMAGES_DIR=\\\"%s/images/\\\"" % PACKAGE_NAME,
@@ -32,6 +36,7 @@ load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "hali
     data = glob(["images/*.png"]),
     linkopts = halide_language_linkopts(),
     deps = [
+        ":clock",
         "//:language",
         "//tools:halide_image_io",
     ],
@@ -118,13 +123,13 @@ cc_binary(
     name = "lesson_16_rgb_run",
     srcs = [
         "lesson_16_rgb_run.cpp",
-        "clock.h",
     ],
+    linkopts = halide_runtime_linkopts(),
     deps = [
         ":brighten_either",
         ":brighten_interleaved",
         ":brighten_planar",
         ":brighten_specialized",
+        ":clock",
     ],
-    linkopts = halide_runtime_linkopts(),
 )
