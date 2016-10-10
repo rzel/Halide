@@ -20,6 +20,7 @@ cc_library(
     includes = ["include", "build_include"],
     hdrs = glob([
         "include/llvm/**/*.h",
+        "include/llvm-c/**/*.h",
         "build_include/llvm/**/*.h",
     ]),
     # srcs = get_llvm_static_libs(),
