@@ -13,8 +13,8 @@ def halide_language_linkopts():
   _default_opts = []
   _osx_opts = ["-Wl,-stack_size", "-Wl,1000000"]
   return select({
-      "//:halide_host_config_darwin": _osx_opts,
-      "//:halide_host_config_darwin_x86_64": _osx_opts,
+      "@halide//:halide_host_config_darwin": _osx_opts,
+      "@halide//:halide_host_config_darwin_x86_64": _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
       "//conditions:default": _default_opts,
   })
@@ -31,8 +31,8 @@ def halide_opengl_linkopts():
   _default_opts = ["-lGL"]
   _osx_opts = ["-framework OpenGL"]
   return select({
-      "//:halide_platform_config_darwin": _osx_opts,
-      "//:halide_platform_config_darwin_x86_64": _osx_opts,
+      "@halide//:halide_platform_config_darwin": _osx_opts,
+      "@halide//:halide_platform_config_darwin_x86_64": _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
       "//conditions:default": _default_opts,
   })
@@ -170,7 +170,7 @@ def _config_setting_name(halide_target):
 
 
 def _config_setting(halide_target):
-  return "//:%s" % _config_setting_name(halide_target)
+  return "@halide//:%s" % _config_setting_name(halide_target)
 
 
 _output_extensions = {
@@ -354,7 +354,7 @@ def halide_library(name,
     srcs=srcs,
     copts=halide_language_copts(),
     linkopts=halide_language_linkopts(),
-    deps=["//:internal_halide_generator_glue"] + generator_deps,
+    deps=["@halide//:internal_halide_generator_glue"] + generator_deps,
     visibility=["//visibility:private"],
     tags=["manual"]
   )
@@ -377,7 +377,7 @@ def halide_library(name,
       halide_target=multitarget,
       halide_function_name=function_name,
       sanitizer = select({
-        "//:halide_config_msan": "msan",
+        "@halide//:halide_config_msan": "msan",
         "//conditions:default": "",
       }),
       debug_codegen_level=debug_codegen_level,
@@ -416,7 +416,7 @@ def halide_library(name,
   native.cc_library(
     name=name,
     hdrs=[":%s_header" % name] + hdrs,
-    deps=["//:runtime"] + select(condition_deps) + filter_deps,
+    deps=["@halide//:runtime"] + select(condition_deps) + filter_deps,
     includes=includes,
     visibility=visibility
   )
