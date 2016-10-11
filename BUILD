@@ -1,7 +1,6 @@
 # TODO: NaCl not supported at all
 # TODO: should "-c dbg" use the debug runtime?
 # TODO: default-copts? default-linkopts?
-# TODO: platform detection for OpenGL linkage
 # TODO: build distrib, build install
 # TODO apps/HelloAndroid
 # TODO apps/HelloAndroidCamera2
@@ -10,7 +9,6 @@
 # TODO apps/HelloHexagon
 # TODO apps/HelloMatlab
 # TODO apps/HelloiOS
-# TODO apps/fft
 # TODO apps/glsl
 # TODO apps/interpolate
 # TODO apps/linear_algebra
