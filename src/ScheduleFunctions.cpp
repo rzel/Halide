@@ -727,7 +727,7 @@ class IsRealizedInStmt : public IRVisitor {
     using IRVisitor::visit;
 
     void visit(const Realize *op) {
-        debug(0) << "FIND REALIZE " << op->name << "\n";
+        //debug(0) << "FIND REALIZE " << op->name << "\n";
         IRVisitor::visit(op);
         if (op->name == func) result = true;
     }
@@ -836,7 +836,7 @@ private:
             debug(3) << "Found compute level\n";
             if (!function_is_already_realized_in_stmt(func, body) &&
                 (function_is_used_in_stmt(func, body) || is_output)) {
-                debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
+                //debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
                 body = build_pipeline(body);
             }
             found_compute_level = true;
@@ -971,7 +971,7 @@ private:
 
     void visit(const For *op) {
         //TODO(psuriana): replace the name with a new name and define the let statement wrapping the for loop
-        debug(0) << "VISIT FOR: " << op->name << "\n";
+        //debug(0) << "VISIT FOR: " << op->name << "\n";
 
         const Variable *min_var = op->min.as<Variable>();
         const Variable *extent_var = op->extent.as<Variable>();
@@ -980,14 +980,14 @@ private:
             {
                 const auto it = replacements.find(min_var->name);
                 if (it != replacements.end()) {
-                    debug(0) << "****REPLACEMENT MIN: " << min_var->name << " -> " << it->second << "\n";
+                    //debug(0) << "****REPLACEMENT MIN: " << min_var->name << " -> " << it->second << "\n";
                     min_val = it->second;
                 }
             }
             {
                 const auto it = replacements.find(extent_var->name);
                 if (it != replacements.end()) {
-                    debug(0) << "****REPLACEMENT EXTENT: " << extent_var->name << " -> " << it->second << "\n";
+                    //debug(0) << "****REPLACEMENT EXTENT: " << extent_var->name << " -> " << it->second << "\n";
                     extent_val = it->second;
                 }
             }
@@ -1014,7 +1014,7 @@ private:
 
             stmt = substitute(op->name, Variable::make(Int(32), new_var), stmt);
 
-            debug(0) << "\n******\nRESULT:\n" << stmt << "\n";
+            //debug(0) << "\n******\nRESULT:\n" << stmt << "\n";
         } else {
             IRMutator::visit(op);
         }
@@ -1081,7 +1081,7 @@ private:
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        debug(0) << "\n******\nReplacement:\n";
+        /*debug(0) << "\n******\nReplacement:\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
@@ -1091,17 +1091,17 @@ private:
         for (const auto &iter : bounds) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
-        debug(3) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        //debug(3) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
         produce = extract_bounds(produce, bounds, replacements);
-        debug(3) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
+        //debug(3) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
 
-        debug(0) << "\n******\nBOUNDS:\n";
+        /*debug(0) << "\n******\nBOUNDS:\n";
         for (const auto &iter : bounds) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
         //debug(0) << "\n***START REPLACING\n";
 
