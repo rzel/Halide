@@ -9,6 +9,7 @@ simple_gen(
 cc_test(
     name = "test",
     srcs = ["test.cpp"],
+    copts = ["-Wno-unknown-pragmas"],
     linkopts = halide_runtime_linkopts(),
     deps = [
         "@halide//:runtime",
