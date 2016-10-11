@@ -1,11 +1,11 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts")
 
 cc_binary(
     name = "pipeline_gen",
     srcs = ["pipeline.cpp"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
-    deps = ["@//:language"],
+    deps = ["@halide//:language"],
 )
 
 genrule(
@@ -32,7 +32,7 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":pipeline",
-        "//:runtime",
+        "@halide//:runtime",
     ],
 )
 
@@ -41,7 +41,7 @@ cc_binary(
     srcs = ["pipeline_cpp.cpp"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
-    deps = ["@//:language"],
+    deps = ["@halide//:language"],
 )
 
 genrule(
@@ -68,6 +68,6 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":pipeline_cpp",
-        "//:runtime",
+        "@halide//:runtime",
     ],
 )

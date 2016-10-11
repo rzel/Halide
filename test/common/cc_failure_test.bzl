@@ -2,7 +2,7 @@ def cc_failure_test(name, srcs, deps, copts, linkopts):
   native.cc_binary(
     name = "error_%s" % name,
     srcs = srcs,
-    deps = ["//:language"],
+    deps = ["@halide//:language"],
     copts = copts,
     linkopts = linkopts,
     visibility = ["//visibility:private"]

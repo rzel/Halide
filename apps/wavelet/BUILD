@@ -1,4 +1,4 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 halide_library(
     name = "daubechies_x",
@@ -45,7 +45,7 @@ cc_binary(
         ":haar_x",
         ":inverse_daubechies_x",
         ":inverse_haar_x",
-        "//tools:halide_image_io",
+        "@halide//tools:halide_image_io",
     ],
 )
 
@@ -54,10 +54,10 @@ sh_test(
     srcs = ["wavelet_test.sh"],
     args = [
         "$(location :wavelet)",
-        "$(location //apps/images:gray.png)",
+        "$(location @halide//apps/images:gray.png)",
     ],
     data = [
         ":wavelet",
-        "//apps/images:gray.png",
+        "@halide//apps/images:gray.png",
     ],
 )

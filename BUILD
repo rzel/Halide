@@ -26,9 +26,9 @@ package(
     default_visibility = ["//visibility:private"],
 )
 
-load(":bazel_helpers/halide_runtime_build_helpers.bzl", "gen_runtime_targets", "runtime_srcs")
+load("@halide//:bazel_helpers/halide_runtime_build_helpers.bzl", "gen_runtime_targets", "runtime_srcs")
 load("@llvm//:llvm_version.bzl", "get_llvm_version", "get_llvm_enabled_components")
-load("//:halide.bzl", "halide_config_settings")
+load("@halide//:halide.bzl", "halide_config_settings")
 
 halide_config_settings()
 
@@ -69,13 +69,23 @@ genrule(
         ":runtime_headers",
         "src/HalideFooter.h",
     ],
-    outs = ["Halide.h"],
+    # TODO moving into 'generated' subfolder as workaround for https://github.com/bazelbuild/bazel/issues/1248
+    outs = ["generated/Halide.h"],
     # :runtime_headers needs to be made available to the sandbox,
     # but we only want to use the ones referenced indirectly by
     # :language_headers.
-    cmd = "$(location //tools:build_halide_h) $(locations :language_headers) $(location src/HalideFooter.h) > $@",
-    tools = ["//tools:build_halide_h"],
+    cmd = "$(location @halide//tools:build_halide_h) $(locations :language_headers) $(location src/HalideFooter.h) > $@",
+    tools = ["@halide//tools:build_halide_h"],
 )
+
+cc_library(
+    name = "halide_h",
+    srcs = [":build_single_language_header"],
+    visibility = ["//visibility:public"],
+    linkstatic = 1,
+    includes=["generated"]
+)
+
 
 runtime_cpp_components = [
     "aarch64_cpu_features",
@@ -215,11 +225,12 @@ cc_library(
 
 cc_library(
     name = "language",
-    hdrs = [
-        "Halide.h",
-    ],
+    # hdrs = [
+    #     ":Halide.h",
+    # ],
     visibility = ["//visibility:public"],
     deps = [
+        ":halide_h",
         ":lib_halide",
         ":runtime",
     ],
@@ -244,10 +255,10 @@ cc_library(
     linkopts = select({
         # There isn't (yet) a good way to make a config that is "Any Android",
         # so we're forced to specialize on all supported Android CPU configs.
-        "//:halide_config_arm_32_android": _ANDROID_RUNTIME_LINKOPTS,
-        "//:halide_config_arm_64_android": _ANDROID_RUNTIME_LINKOPTS,
-        "//:halide_config_x86_32_android": _ANDROID_RUNTIME_LINKOPTS,
-        "//:halide_config_x86_64_android": _ANDROID_RUNTIME_LINKOPTS,
+        "@halide//:halide_config_arm_32_android": _ANDROID_RUNTIME_LINKOPTS,
+        "@halide//:halide_config_arm_64_android": _ANDROID_RUNTIME_LINKOPTS,
+        "@halide//:halide_config_x86_32_android": _ANDROID_RUNTIME_LINKOPTS,
+        "@halide//:halide_config_x86_64_android": _ANDROID_RUNTIME_LINKOPTS,
         "//conditions:default": _DEFAULT_RUNTIME_LINKOPTS,
     }),
     visibility = ["//visibility:public"],
@@ -259,7 +270,7 @@ cc_library(
     testonly = 1,
     hdrs = ["src/runtime/mini_opengl.h"],
     includes = ["src"],
-    visibility = ["//test:__subpackages__"],
+    visibility = ["//test:__subpackages__"],  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
 )
 
 # TODO: should this be moved to a BUILD file in src/runtime?
@@ -268,13 +279,16 @@ cc_library(
     testonly = 1,
     hdrs = ["src/runtime/device_interface.h"],
     includes = ["src"],
-    visibility = ["//test:__subpackages__"],
+    visibility = ["//test:__subpackages__"],  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
 )
 
 cc_library(
     name = "internal_halide_generator_glue",
-    srcs = ["//tools:gengen"],
+    srcs = ["@halide//tools:gengen"],
     linkstatic = 1,
     visibility = ["//visibility:public"],
-    deps = [":language"],
+    deps = [
+        ":halide_h",
+        ":language",
+    ]
 )

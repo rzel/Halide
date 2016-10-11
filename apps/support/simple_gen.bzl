@@ -1,10 +1,10 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
 
 def simple_gen(name, srcs, args = []):
   native.cc_binary(
     name = "%s_gen" % name,
     srcs = srcs,
-    deps = ["@//:language"],
+    deps = ["@halide//:language"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts()
   )

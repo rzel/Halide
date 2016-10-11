@@ -1,4 +1,4 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts", "halide_library")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_runtime_linkopts", "halide_library")
 
 cc_library(
     name = "clock",
@@ -11,7 +11,7 @@ cc_library(
     srcs = ["%s.cpp" % t],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
-    deps = ["//:language"],
+    deps = ["@halide//:language"],
 ) for t in [
     "lesson_01_basics",
     "lesson_03_debugging_1",
@@ -37,8 +37,8 @@ cc_library(
     linkopts = halide_language_linkopts(),
     deps = [
         ":clock",
-        "//:language",
-        "//tools:halide_image_io",
+        "@halide//:language",
+        "@halide//tools:halide_image_io",
     ],
 ) for t in [
     "lesson_02_input_image",
@@ -53,7 +53,7 @@ cc_binary(
     srcs = ["lesson_10_aot_compilation_generate.cpp"],
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
-    deps = ["//:language"],
+    deps = ["@halide//:language"],
 )
 
 genrule(
@@ -82,7 +82,7 @@ cc_binary(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":lesson_10_aot_compilation_generate_lib",
-        "//:language",
+        "@halide//:language",
     ],
 )
 
@@ -94,8 +94,8 @@ cc_binary(
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
     deps = [
-        "//:language",
-        "//tools:gengen",
+        "@halide//:language",
+        "@halide//tools:gengen",
     ],
 )
 

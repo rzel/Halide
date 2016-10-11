@@ -1,4 +1,4 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts")
 
 cc_library(
     name = "benchmark",
@@ -12,6 +12,6 @@ cc_library(
     linkopts = halide_language_linkopts(),
     deps = [
         ":benchmark",
-        "//:language",
+        "@halide//:language",
     ],
 ) for test in glob(["*.cpp"])]

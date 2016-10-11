@@ -1,5 +1,5 @@
-load("//apps/support:simple_gen.bzl", "simple_gen")
-load("//:halide.bzl", "halide_runtime_linkopts")
+load("@halide//apps/support:simple_gen.bzl", "simple_gen")
+load("@halide//:halide.bzl", "halide_runtime_linkopts")
 
 simple_gen(
     name = "camera_pipe",
@@ -19,10 +19,10 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":camera_pipe",
-        "//:runtime",
-        "//apps/support:benchmark",
-        "//tools:halide_image_io",
-        "//tools:halide_malloc_trace",
+        "@halide//:runtime",
+        "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
+        "@halide//tools:halide_image_io",
+        "@halide//tools:halide_malloc_trace",
     ],
 )
 
@@ -30,9 +30,9 @@ TIMING_ITERATIONS = 5
 
 genrule(
     name = "gen_out_png",
-    srcs = ["//apps/images:bayer_raw.png"],
+    srcs = ["@halide//apps/images:bayer_raw.png"],
     outs = ["out.png"],
-    cmd = "$(location :process) $(location //apps/images:bayer_raw.png) 3700 2.0 50 %d $@" % TIMING_ITERATIONS,
+    cmd = "$(location :process) $(location @halide//apps/images:bayer_raw.png) 3700 2.0 50 %d $@" % TIMING_ITERATIONS,
     tools = [":process"],
 )
 

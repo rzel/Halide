@@ -39,6 +39,6 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//:language",
+        "@halide//:language",
     ],
 )

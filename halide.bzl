@@ -317,21 +317,21 @@ def _select_multitarget(base_target,
 
 
 def halide_library(name,
-           srcs,
-           hdrs=[],
-           filter_deps=[],
-           generator_deps=[],
-           visibility=None,
-           namespace=None,
-           function_name=None,
-           generator_name="",
-           generator_args="",
-           debug_codegen_level=0,
-           trace_level=0,
-           halide_target_features=[],
-           halide_target_map=_HALIDE_TARGET_MAP_DEFAULT,
-           extra_outputs=[],
-           includes=[]):
+                   srcs,
+                   hdrs=[],
+                   filter_deps=[],
+                   generator_deps=[],
+                   visibility=None,
+                   namespace=None,
+                   function_name=None,
+                   generator_name="",
+                   generator_args="",
+                   debug_codegen_level=0,
+                   trace_level=0,
+                   halide_target_features=[],
+                   halide_target_map=_HALIDE_TARGET_MAP_DEFAULT,
+                   extra_outputs=[],
+                   includes=[]):
 
   if not function_name:
     function_name = name

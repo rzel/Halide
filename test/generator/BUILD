@@ -1,4 +1,4 @@
-load("@//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 cc_library(
     name = "extended_buffer_t_common",
@@ -174,7 +174,7 @@ halide_library(
     linkopts = halide_language_linkopts(),
     deps = [
         ":%s_jittest_includes" % test,
-        "//:language",
+        "@halide//:language",
     ],
 ) for test in [
     "example",
@@ -190,7 +190,7 @@ halide_library(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":%s" % test,
-        "//:language",
+        "@halide//:language",
     ],
 ) for test in [
     "acquire_release",
@@ -222,8 +222,8 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":cleanup_on_error",
-        "//:device_interface",
-        "//:language",
+        "//:device_interface",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
+        "@halide//:language",
     ],
 )
 
@@ -234,7 +234,7 @@ cc_test(
     deps = [
         ":metadata_tester",
         ":metadata_tester_ucon",
-        "//:language",
+        "@halide//:language",
     ],
 )
 
@@ -245,7 +245,7 @@ cc_test(
     deps = [
         ":extended_buffer_t",
         ":extended_buffer_t_common",
-        "//:language",
+        "@halide//:language",
     ],
 )
 
@@ -255,8 +255,8 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":gpu_object_lifetime",
-        "//:language",
-        "//test/common:gpu_object_lifetime_tracker",
+        "@halide//:language",
+        "//test/common:gpu_object_lifetime_tracker",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
 )
 
@@ -266,7 +266,7 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":nested_externs_root",
-        "//:language",
+        "@halide//:language",
     ],
 )
 
@@ -277,7 +277,7 @@ cc_test(
     deps = [
         ":tiled_blur%s" % suffix,
         ":tiled_blur_blur%s" % suffix,
-        "//:language",
+        "@halide//:language",
     ],
 ) for suffix in [
     "",

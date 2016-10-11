@@ -1,5 +1,5 @@
-load("//apps/support:simple_gen.bzl", "simple_gen")
-load("//:halide.bzl", "halide_runtime_linkopts")
+load("@halide//apps/support:simple_gen.bzl", "simple_gen")
+load("@halide//:halide.bzl", "halide_runtime_linkopts")
 
 simple_gen(
     name = "halide_blur",
@@ -12,8 +12,8 @@ cc_test(
     linkopts = halide_runtime_linkopts(),
     deps = [
         ":halide_blur",
-        "//:runtime",
-        "//apps/support:benchmark",
+        "@halide//:runtime",
+        "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
     # TODO: detect whether the C++ compiler supports this.
     # copts = ["-fopenmp"]

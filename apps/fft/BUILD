@@ -1,4 +1,4 @@
-load("//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
+load("@halide//:halide.bzl", "halide_language_copts", "halide_language_linkopts", "halide_library", "halide_runtime_linkopts")
 
 # TODO: add WITH_FFTW support
 cc_binary(
@@ -13,8 +13,8 @@ cc_binary(
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
     deps = [
-        "//:language",
-        "//apps/support:benchmark",
+        "@halide//:language",
+        "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
 )
 
@@ -28,7 +28,7 @@ cc_library(
         "fft.h",
         "funct.h",
     ],
-    deps = ["//:language"],
+    deps = ["@halide//:language"],
 )
 
 halide_library(
