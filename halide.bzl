@@ -31,10 +31,8 @@ def halide_opengl_linkopts():
   _default_opts = ["-lGL"]
   _osx_opts = ["-framework OpenGL"]
   return select({
-      _config_setting("arm-32-ios"): _osx_opts,
-      _config_setting("arm-64-ios"): _osx_opts,
-      _config_setting("x86-32-osx"): _osx_opts,
-      _config_setting("x86-64-osx"): _osx_opts,
+      "//:halide_platform_config_darwin": _osx_opts,
+      "//:halide_platform_config_darwin_x86_64": _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
       "//conditions:default": _default_opts,
   })
@@ -95,6 +93,16 @@ def _halide_host_config_settings():
       values={"host_cpu" : host_cpu},
       visibility=["//visibility:public"]
     )
+    # TODO hokey, improve, this isn't really right in general
+    native.config_setting(
+        name = "halide_platform_config_%s" % host_cpu,
+        values = {
+            # "crosstool_top": "//tools/osx/crosstool",
+            "cpu": host_cpu,
+        },
+        visibility=["//visibility:public"]
+    )
+
 
 
 def halide_config_settings():
