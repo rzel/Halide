@@ -282,6 +282,14 @@ cc_library(
 )
 
 cc_library(
+    name = "internal_test_includes",
+    testonly = 1,
+    hdrs = [":language_headers"],
+    includes = ["src"],
+    visibility = ["//test:__subpackages__"],  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
+)
+
+cc_library(
     name = "internal_halide_generator_glue",
     srcs = ["@halide//tools:gengen"],
     linkstatic = 1,

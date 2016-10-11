@@ -14,7 +14,7 @@ int main() {
 
 #include "Halide.h"
 
-#include "runtime/mini_opengl.h"
+#include "mini_opengl.h"
 
 extern "C" void glGenTextures(GLsizei, GLuint *);
 extern "C" void glTexParameteri(GLenum, GLenum, GLint);

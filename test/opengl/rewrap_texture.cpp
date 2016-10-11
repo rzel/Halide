@@ -15,7 +15,7 @@ int main() {
 #include "Halide.h"
 #include "HalideRuntimeOpenGL.h"
 
-#include "runtime/mini_opengl.h"
+#include "mini_opengl.h"
 
 using namespace Halide;
 
