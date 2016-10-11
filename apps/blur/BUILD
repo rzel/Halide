@@ -11,8 +11,8 @@ cc_test(
     srcs = ["test.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
-        ":halide_blur",
         "@halide//:runtime",
+        ":halide_blur",
         "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
     # TODO: detect whether the C++ compiler supports this.

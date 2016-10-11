@@ -81,11 +81,10 @@ genrule(
 cc_library(
     name = "halide_h",
     srcs = [":build_single_language_header"],
-    visibility = ["//visibility:public"],
+    includes = ["generated"],
     linkstatic = 1,
-    includes=["generated"]
+    visibility = ["//visibility:public"],
 )
-
 
 runtime_cpp_components = [
     "aarch64_cpu_features",
@@ -290,5 +289,5 @@ cc_library(
     deps = [
         ":halide_h",
         ":language",
-    ]
+    ],
 )

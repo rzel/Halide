@@ -41,11 +41,11 @@ cc_binary(
     srcs = ["wavelet.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
+        "@halide//tools:halide_image_io",
         ":daubechies_x",
         ":haar_x",
         ":inverse_daubechies_x",
         ":inverse_haar_x",
-        "@halide//tools:halide_image_io",
     ],
 )
 
@@ -57,7 +57,7 @@ sh_test(
         "$(location @halide//apps/images:gray.png)",
     ],
     data = [
-        ":wavelet",
         "@halide//apps/images:gray.png",
+        ":wavelet",
     ],
 )

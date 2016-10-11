@@ -11,7 +11,7 @@ cc_library(
     copts = halide_language_copts(),
     linkopts = halide_language_linkopts(),
     deps = [
-        ":benchmark",
         "@halide//:language",
+        ":benchmark",
     ],
 ) for test in glob(["*.cpp"])]

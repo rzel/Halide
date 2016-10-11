@@ -221,9 +221,9 @@ cc_test(
     srcs = ["cleanup_on_error_aottest.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
+        "@halide//:language",
         ":cleanup_on_error",
         "//:device_interface",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
-        "@halide//:language",
     ],
 )
 
@@ -232,9 +232,9 @@ cc_test(
     srcs = ["metadata_tester_aottest.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
+        "@halide//:language",
         ":metadata_tester",
         ":metadata_tester_ucon",
-        "@halide//:language",
     ],
 )
 
@@ -243,9 +243,9 @@ cc_test(
     srcs = ["extended_buffer_t_aottest.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
+        "@halide//:language",
         ":extended_buffer_t",
         ":extended_buffer_t_common",
-        "@halide//:language",
     ],
 )
 
@@ -254,8 +254,8 @@ cc_test(
     srcs = ["gpu_object_lifetime_aottest.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
-        ":gpu_object_lifetime",
         "@halide//:language",
+        ":gpu_object_lifetime",
         "//test/common:gpu_object_lifetime_tracker",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
 )
@@ -265,8 +265,8 @@ cc_test(
     srcs = ["nested_externs_aottest.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
-        ":nested_externs_root",
         "@halide//:language",
+        ":nested_externs_root",
     ],
 )
 

@@ -12,10 +12,10 @@ cc_binary(
     srcs = ["filter.cpp"],
     linkopts = halide_runtime_linkopts(),
     deps = [
-        ":bilateral_grid",
         "@halide//:runtime",
-        "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
         "@halide//tools:halide_image_io",
+        ":bilateral_grid",
+        "//apps/support:benchmark",  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
     ],
 )
 
