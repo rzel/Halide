@@ -28,6 +28,7 @@ if (NOT MSVC)
 endif()
 
 # FIXME: Cannot use halide_add_generator_dependency()
-add_custom_command(OUTPUT "${camera_pipe_h}" "${camera_pipe_lib}"
-                   COMMAND camera_pipe 8 "${CMAKE_CURRENT_BINARY_DIR}/"
-                   COMMENT "Generating camera_pipe header and object file")
+add_custom_command(OUTPUT "${curved_h}" "${curved_lib}"
+                   COMMAND camera_pipe 8
+                   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+                   COMMENT "Generating curved header and object file")
