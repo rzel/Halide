@@ -268,7 +268,7 @@ cc_library(
     name = "mini_opengl",
     testonly = 1,
     hdrs = ["src/runtime/mini_opengl.h"],
-    includes = ["src"],
+    includes = ["src/runtime"],
     visibility = ["//test:__subpackages__"],  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
 )
 
@@ -277,7 +277,7 @@ cc_library(
     name = "device_interface",
     testonly = 1,
     hdrs = ["src/runtime/device_interface.h"],
-    includes = ["src"],
+    includes = ["src/runtime"],
     visibility = ["//test:__subpackages__"],  # TODO add @halide when https://github.com/bazelbuild/bazel/issues/1248 is fixed
 )
 
