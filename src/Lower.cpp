@@ -126,7 +126,7 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
     // can still simplify Exprs).
     debug(1) << "Performing computation bounds inference...\n";
     s = bounds_inference(s, outputs, order, env, func_bounds, t);
-    debug(2) << "Lowering after computation bounds inference:\n" << s << '\n';
+    debug(0) << "Lowering after computation bounds inference:\n" << s << '\n';
 
     debug(1) << "Performing sliding window optimization...\n";
     s = sliding_window(s, env);
@@ -236,7 +236,7 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
     debug(2) << "Lowering after partitioning loops:\n" << s << "\n\n";
 
     debug(1) << "Trimming loops to the region over which they do something...\n";
-    s = trim_no_ops(s);
+    //s = trim_no_ops(s);
     debug(2) << "Lowering after loop trimming:\n" << s << "\n\n";
 
     debug(1) << "Injecting early frees...\n";

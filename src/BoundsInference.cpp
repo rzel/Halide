@@ -273,6 +273,21 @@ public:
 
             const vector<string> func_args = func.args();
 
+            debug(0) << "INNER PRODUCTION: ";
+            for (const auto &s : inner_productions) {
+                debug(0) << s << ", ";
+            }
+            debug(0) << "\n";
+
+            debug(0) << "producing_stage: " <<  producing_stage << "\n";
+            debug(0) << "loop_level: " <<  loop_level << "\n";
+
+            debug(0) << "in_pipeline: ";
+            for (const auto &s : in_pipeline) {
+                debug(0) << s << ", ";
+            }
+            debug(0) << "\n";
+
             for (const pair<pair<string, int>, Box> &i : bounds) {
                 string func_name = i.first.first;
                 string stage_name = func_name + ".s" + std::to_string(i.first.second);
@@ -362,6 +377,9 @@ public:
                         // Modify the region to be computed accordingly
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".max", new_max, s);
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".min", new_min, s);
+
+                        debug(0) << "****INJECTING BOUND HAHAHA " << func.name() + ".s0." + func_args[i]
+                            << ": max: " << new_max << ", min: " << new_min << "\n";
                     }
 
                     // 2)
@@ -389,6 +407,8 @@ public:
 
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".max", new_max, s);
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".min", new_min, s);
+                        debug(0) << "****INJECTING BOUND HMMMM " << func.name() + ".s0." + func_args[i]
+                            << ": max: " << new_max << ", min: " << new_min << "\n";
                     }
 
                     s = do_bounds_query(s, in_pipeline, target);
@@ -403,6 +423,8 @@ public:
 
                 LoopLevel compute_at = func.schedule().compute_level();
                 LoopLevel store_at = func.schedule().store_level();
+
+                debug(0) << "***** NAME " << name << ", compute_at: " << compute_at.to_string() << ", store_at: " << store_at.to_string() << "\n";
 
                 for (size_t i = 0; i < func.schedule().bounds().size(); i++) {
                     Bound bound = func.schedule().bounds()[i];
@@ -458,6 +480,9 @@ public:
                     s = LetStmt::make(arg + ".min", b[d].min, s);
                 }
                 s = LetStmt::make(arg + ".max", b[d].max, s);
+
+                debug(0) << "****PIPELINE: " << name << "; INJECTING BOUND TTTTTT " << arg
+                            << ": max: " << b[d].max << ", min: " << b[d].min << "\n";
             }
 
             if (stage > 0) {
@@ -827,6 +852,7 @@ public:
     using IRMutator::visit;
 
     void visit(const For *op) {
+        debug(0) << "***VISIT FOR " << op->name << "\n";
         set<string> old_inner_productions;
         inner_productions.swap(old_inner_productions);
 
@@ -875,6 +901,7 @@ public:
         body = mutate(body);
 
         if (!no_pipelines) {
+            debug(0) << "+++BACK TO " << op->name << "\n";
 
             // We only care about the bounds of a func if:
             // A) We're not already in a pipeline over that func AND
@@ -894,6 +921,7 @@ public:
                     for (size_t j = 0; j < stages[i].consumers.size(); j++) {
                         bounds_needed[stages[i].consumers[j]] = true;
                     }
+                    debug(0) << "\n******\nDEFINING BOUND FOR " << op->name << "\n";
                     body = stages[i].define_bounds(body, stage_name, op->name, in_stages, in_pipeline, inner_productions, target);
                 }
             }
@@ -913,6 +941,8 @@ public:
                     }
 
                     body = LetStmt::make(var + ".min", box[i].min, body);
+
+                    debug(0) << "****INJECTING BOUND PPPPPP " << var << ": max: " << box[i].max << ", min: " << box[i].min << "\n";
 
                     // The following is also valid, but seems to not simplify as well
                     /*
@@ -940,10 +970,12 @@ public:
                     if (in.is_bounded()) {
                         body = LetStmt::make(var + ".min", in.min, body);
                         body = LetStmt::make(var + ".max", in.max, body);
+                        debug(0) << "****INJECTING BOUND FOR " << var << ": max: " << in.max << ", min: " << in.min << "\n";
                     } else {
                         // If it's not found, we're already in the
                         // scope of the injected let. The let was
                         // probably lifted to an outer level.
+                        debug(0) << "****INJECTING BOUND UNKNOWN " << var << ": max: " << in.max << ", min: " << in.min << "\n";
                         Expr val = Variable::make(Int(32), var);
                         body = LetStmt::make(var + ".min", val, body);
                         body = LetStmt::make(var + ".max", val, body);

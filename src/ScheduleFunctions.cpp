@@ -87,8 +87,8 @@ Stmt build_provide_loop_nest_helper(string func_name,
     for (int i = start_fuse; (i >= 0) && (i < (int)s.dims().size()-1); ++i) {
         const Dim &dim = s.dims()[i];
         Expr var = Variable::make(Int(32), prefix + dim.var);
-        Expr max = Variable::make(Int(32), prefix + dim.var + ".loop_max.original");
-        Expr min = Variable::make(Int(32), prefix + dim.var + ".loop_min.original");
+        Expr max = Variable::make(Int(32), prefix + dim.var + ".loop_max");
+        Expr min = Variable::make(Int(32), prefix + dim.var + ".loop_min");
         stmt = IfThenElse::make(likely(min <= var), stmt);
         stmt = IfThenElse::make(likely(var <= max), stmt);
     }
@@ -721,6 +721,28 @@ bool function_is_used_in_stmt(Function f, Stmt s) {
     return is_called.result;
 }
 
+class IsRealizedInStmt : public IRVisitor {
+    string func;
+
+    using IRVisitor::visit;
+
+    void visit(const Realize *op) {
+        debug(0) << "FIND REALIZE " << op->name << "\n";
+        IRVisitor::visit(op);
+        if (op->name == func) result = true;
+    }
+
+public:
+    bool result;
+    IsRealizedInStmt(Function f) : func(f.name()), result(false) {}
+};
+
+bool function_is_already_realized_in_stmt(Function f, Stmt s) {
+    IsRealizedInStmt is_realized(f);
+    s.accept(&is_realized);
+    return is_realized.result;
+}
+
 // Inject the allocation and realization of a function into an
 // existing loop nest using its schedule
 class InjectRealization : public IRMutator {
@@ -798,6 +820,7 @@ private:
         if (func.has_extern_definition() &&
             func.schedule().compute_level().is_inline() &&
             for_loop->for_type == ForType::Vectorized &&
+            !function_is_already_realized_in_stmt(func, for_loop) &&
             function_is_used_in_stmt(func, for_loop)) {
 
             // If we're trying to inline an extern function, schedule it here and bail out
@@ -811,7 +834,9 @@ private:
 
         if (compute_level.match(for_loop->name)) {
             debug(3) << "Found compute level\n";
-            if (function_is_used_in_stmt(func, body) || is_output) {
+            if (!function_is_already_realized_in_stmt(func, body) &&
+                (function_is_used_in_stmt(func, body) || is_output)) {
+                debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
                 body = build_pipeline(body);
             }
             found_compute_level = true;
@@ -822,7 +847,8 @@ private:
             internal_assert(found_compute_level)
                 << "The compute loop level was not found within the store loop level!\n";
 
-            if (function_is_used_in_stmt(func, body) || is_output) {
+            if (!function_is_already_realized_in_stmt(func, body) &&
+                (function_is_used_in_stmt(func, body) || is_output)) {
                 body = build_realize(body);
             }
 
@@ -933,42 +959,64 @@ public:
 private:
     using IRMutator::visit;
 
-    void visit(const Variable *op) {
-        //debug(0) << "***VISIT Variable: " << op->name << "\n";
-        if (ends_with(op->name, ".original")) {
-            string name = op->name.substr(0, op->name.size()-9);
-            auto iter = bounds.find(name);
-            internal_assert((iter != bounds.end()) && (iter->second.defined())) << "Cannot find " << name << "\n";
-            //debug(0) << "***Replacing " << op->name << " TO " <<  iter->second << "\n";
-            expr = iter->second;
-            return;
-        }
-        IRMutator::visit(op);
-    }
-
     void visit(const LetStmt *op) {
         //debug(0) << "VISITING LET: " << op->name << "\n";
         auto iter = bounds.find(op->name);
         if (iter != bounds.end()) {
             iter->second = op->value;
-            debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
+            //debug(0) << "***Push " << iter->first << " -> " << bounds[op->name] << "\n";
         }
+        IRMutator::visit(op);
+    }
 
-        Expr value;
-        const auto it = replacements.find(op->name);
-        if (it != replacements.end()) {
-            //debug(0) << "****REPLACEMENT " << op->name << " -> " << it->second << "\n";
-            value = it->second;
+    void visit(const For *op) {
+        //TODO(psuriana): replace the name with a new name and define the let statement wrapping the for loop
+        debug(0) << "VISIT FOR: " << op->name << "\n";
+
+        const Variable *min_var = op->min.as<Variable>();
+        const Variable *extent_var = op->extent.as<Variable>();
+        if (min_var && extent_var) {
+            Expr min_val, extent_val;
+            {
+                const auto it = replacements.find(min_var->name);
+                if (it != replacements.end()) {
+                    debug(0) << "****REPLACEMENT MIN: " << min_var->name << " -> " << it->second << "\n";
+                    min_val = it->second;
+                }
+            }
+            {
+                const auto it = replacements.find(extent_var->name);
+                if (it != replacements.end()) {
+                    debug(0) << "****REPLACEMENT EXTENT: " << extent_var->name << " -> " << it->second << "\n";
+                    extent_val = it->second;
+                }
+            }
+
+            if (!min_val.defined()|| !extent_val.defined()) {
+                IRMutator::visit(op);
+                return;
+            }
+
+            Stmt body = mutate(op->body);
+
+            size_t last_dot = op->name.rfind('.');
+            internal_assert(last_dot != string::npos);
+            string new_var = op->name.substr(0, last_dot) + ".fused." + op->name.substr(last_dot + 1);
+
+            stmt = For::make(new_var, Variable::make(Int(32), new_var + ".loop_min"),
+                             Variable::make(Int(32), new_var + ".loop_extent"),
+                             op->for_type, op->device_api, body);
+
+            stmt = LetStmt::make(new_var + ".loop_max", simplify(min_val + extent_val - 1), stmt);
+
+            stmt = LetStmt::make(new_var + ".loop_min", min_val, stmt);
+            stmt = LetStmt::make(new_var + ".loop_extent", extent_val, stmt);
+
+            stmt = substitute(op->name, Variable::make(Int(32), new_var), stmt);
+
+            debug(0) << "\n******\nRESULT:\n" << stmt << "\n";
         } else {
-            value = mutate(op->value);
-        }
-
-        Stmt body = mutate(op->body);
-
-        if (value.same_as(op->value) && body.same_as(op->body)) {
-            stmt = op;
-        } else {
-            stmt = LetStmt::make(op->name, value, body);
+            IRMutator::visit(op);
         }
     }
 };
@@ -1033,11 +1081,11 @@ private:
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        /*debug(0) << "\n******\nReplacement:\n";
+        debug(0) << "\n******\nReplacement:\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";*/
+        debug(0) << "\n";
 
         debug(0) << "\n******\nBEFORE BOUNDS:\n";
         for (const auto &iter : bounds) {
@@ -1045,9 +1093,9 @@ private:
         }
         debug(0) << "\n";
 
-        debug(0) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
+        debug(3) << "\n*********\nOLD LEAVES: \n" << produce << "\n";
         produce = extract_bounds(produce, bounds, replacements);
-        debug(0) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
+        debug(3) << "\n*********\nNEW LEAVES: \n" << produce << "\n";
 
         debug(0) << "\n******\nBOUNDS:\n";
         for (const auto &iter : bounds) {
@@ -1103,9 +1151,9 @@ private:
 
     Stmt replace_with_union_bound(Function f, Stmt produce, map<string, Expr> &bounds) {
         string prefix = f.name() + ".s0";
-        debug(0) << "\n*********\nBEFORE REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
+        debug(3) << "\n*********\nBEFORE REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
         produce = replace_with_union_bound_definition(f, prefix, f.definition(), produce, bounds);
-        debug(0) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
+        debug(3) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
 
         /*for (size_t j = 0; j < f.updates().size(); ++j) {
             const Definition &def = f.updates()[j];
@@ -1154,12 +1202,12 @@ private:
         map<string, Expr> replacements;
 
         vector<FusedPair> dependence = collect_all_dependence(def);
-        debug(0) << "\n*******\nDEPENDENCE OF " << prefix << ":\n";
+        /*debug(0) << "\n*******\nDEPENDENCE OF " << prefix << ":\n";
         for (const auto &pair : dependence) {
             string prefix = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
             debug(0) << "   " << prefix << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
         for (const FusedPair &pair : dependence) {
             const auto iter = std::find_if(dims.begin(), dims.end(),
@@ -1175,7 +1223,7 @@ private:
                 Expr max_2 = bounds[var_2 + ".loop_max"];
                 Expr extent_2 = bounds[var_2 + ".loop_extent"];
 
-                debug(0) << "++++DEPENDENCE: " << var_2 << ", min: " << min_2 << ", max: " << max_2 << ", extent: " << extent_2 << "\n";
+                //debug(0) << "++++DEPENDENCE: " << var_2 << ", min: " << min_2 << ", max: " << max_2 << ", extent: " << extent_2 << "\n";
 
                 string var_1 = prefix + "." + dims[i].var;
                 internal_assert(bounds.count(var_1 + ".loop_min")) << var_1 << "\n";
@@ -1215,7 +1263,7 @@ private:
                 internal_assert(bounds.count(var_2 + ".loop_extent"));
 
                 // Reset the extents
-                string var_1 = pair.func_1 + ".s" + std::to_string(pair.stage_1) + "." + dims[i].var;
+                string var_1 = pair.func_1 + ".s" + std::to_string(pair.stage_1) + ".fused." + dims[i].var;
                 Expr val = Variable::make(Int(32), var_1);
                 bounds[var_2 + ".loop_min"] = val;
                 bounds[var_2 + ".loop_max"] = val;
@@ -1224,11 +1272,11 @@ private:
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
-        debug(0) << "\n******\nReplacement " << prefix << ":\n";
+        /*debug(0) << "\n******\nReplacement " << prefix << ":\n";
         for (const auto &iter : replacements) {
             debug(0) << iter.first << " -> " << iter.second << "\n";
         }
-        debug(0) << "\n";
+        debug(0) << "\n";*/
 
         //debug(0) << "\n*********\nBEFORE REPLACEMENT: \n" << produce << "\n";
         map<string, Expr> empty_bounds;
