@@ -10,13 +10,13 @@ def halide_language_copts():
 
 
 def halide_language_linkopts():
-  _default_opts = []
+  _linux_opts = ["-rdynamic"]
   _osx_opts = ["-Wl,-stack_size", "-Wl,1000000"]
   return select({
       "@halide//:halide_host_config_darwin": _osx_opts,
       "@halide//:halide_host_config_darwin_x86_64": _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
-      "//conditions:default": _default_opts,
+      "//conditions:default": _linux_opts,
   })
 
 
@@ -28,13 +28,13 @@ def halide_runtime_linkopts():
 
 
 def halide_opengl_linkopts():
-  _default_opts = ["-lGL"]
+  _linux_opts = ["-lGL"]
   _osx_opts = ["-framework OpenGL"]
   return select({
       "@halide//:halide_platform_config_darwin": _osx_opts,
       "@halide//:halide_platform_config_darwin_x86_64": _osx_opts,
       # TODO: this is wrong for (e.g.) Windows and will need further specialization.
-      "//conditions:default": _default_opts,
+      "//conditions:default": _linux_opts,
   })
 
 
