@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <set>
 
 #include "RealizationOrder.h"
@@ -141,9 +142,12 @@ void collect_fused_pairs(const string &fn, size_t stage,
         }
 
         // Assert no duplicates (this technically should not have been possible from the front-end)
-        internal_assert(std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p) == func_fused_pairs.end())
-             << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
-             << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
+        {
+            const auto iter = std::find(func_fused_pairs.begin(), func_fused_pairs.end(), p);
+            internal_assert(iter == func_fused_pairs.end())
+                 << "Found duplicates of fused pair (" << p.func_1 << ".s" << p.stage_1 << ", "
+                 << p.func_2 << ".s" << p.stage_2 << ", " << p.var_name << ")\n";
+        }
 
         // Assert no dependencies among the functions that are computed_with.
         // Self-dependecy is allowed in if and only if there is no loop-carried
