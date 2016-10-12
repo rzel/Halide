@@ -140,6 +140,7 @@ int multiple_fuse_group_test() {
         im = q.realize(200, 200);
     }
 
+    debug(0) << "COMPARING\n";
     auto func = [im_ref](int x, int y) {
         return im_ref(x, y);
     };
@@ -176,13 +177,16 @@ int multiple_outputs_test() {
         f(x, y) = print(100 - input(x, y), "\tx: ", x, "\ty: ", y);
         g(x, y) = print(x + input(x, y), "\tx: ", x, "\ty: ", y);
 
-        input.compute_at(f, y); // Trigger simplify error -> Condition failed: !var_info.contains(op->name)
+        input.compute_at(f, y);
+
+        //TODO(psuriana): should this be valid???
+        //input.compute_at(g, y);
+
         //input.compute_root();
 
         f.update(0).compute_with(f, x);
         g.compute_with(f, y);
 
-        debug(0) << "REALIZING PIPELINE\n";
         Pipeline({f, g}).realize({f_im, g_im});
     }
 

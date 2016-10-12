@@ -727,7 +727,7 @@ class IsRealizedInStmt : public IRVisitor {
     using IRVisitor::visit;
 
     void visit(const Realize *op) {
-        //debug(0) << "FIND REALIZE " << op->name << "\n";
+        debug(0) << "FIND REALIZE " << op->name << "\n";
         IRVisitor::visit(op);
         if (op->name == func) result = true;
     }
@@ -738,6 +738,7 @@ public:
 };
 
 bool function_is_already_realized_in_stmt(Function f, Stmt s) {
+    //TODO(psuriana): this should check that they are not nested instead
     IsRealizedInStmt is_realized(f);
     s.accept(&is_realized);
     return is_realized.result;
@@ -750,11 +751,54 @@ public:
     const Function &func;
     bool is_output, found_store_level, found_compute_level;
     const Target &target;
+    const map<string, Function> &env;
 
-    InjectRealization(const Function &f, bool o, const Target &t) :
-        func(f), is_output(o),
-        found_store_level(false), found_compute_level(false),
-        target(t) {}
+    InjectRealization(const Function &f, bool o, const Target &t, const map<string, Function> &env) :
+            func(f), is_output(o),
+            found_store_level(false), found_compute_level(false),
+            target(t), env(env) {
+    }
+
+    bool is_the_right_level(const string &loop_name) {
+        if (loop_name == LoopLevel::root().to_string()) {
+            return true;
+        }
+        vector<string> v = split_string(loop_name, ".");
+        internal_assert(v.size() > 2) << "loop_name: " << loop_name << "\n";
+        string func_name = v[0];
+        string var = v[v.size()-1];
+
+        int stage = -1;
+        for (size_t i = 1; i < v.size() - 1; ++i) {
+            if (v[i].substr(0, 1) == "s") {
+                string str = v[i].substr(1, v[i].size() - 1);
+                bool has_only_digits = (str.find_first_not_of( "0123456789" ) == string::npos);
+                if (has_only_digits) {
+                    stage = atoi(str.c_str());
+                }
+            }
+        }
+        internal_assert(stage >= 0) << loop_name << "\n";
+
+        debug(5) << "****is right level? " << loop_name << " -> func: " << func_name << "; stage: " << stage << ", var: " << var << "\n";
+
+        if (func_name.empty()) {
+            // It is a root
+            internal_assert(!var.empty());
+            return true;
+        } else {
+            const auto it = env.find(func_name);
+            internal_assert(it != env.end()) << "Unable to find Function " << func_name << " in env (Var = " << var << ")\n";
+            const Function &f = it->second;
+            internal_assert(stage <= (int)f.updates().size());
+
+            const Definition &def = (stage == 0) ? f.definition() : f.update(stage - 1);
+            const LoopLevel &fuse_level = def.schedule().fuse_level();
+            debug(5) << "....fuse level: " << fuse_level.to_string() << "\n";
+            return (fuse_level.is_inline() || fuse_level.is_root());
+        }
+
+    }
 
 private:
 
@@ -803,7 +847,7 @@ private:
     using IRMutator::visit;
 
     void visit(const For *for_loop) {
-        debug(3) << "InjectRealization of " << func.name() << " entering for loop over " << for_loop->name << "\n";
+        debug(0) << "InjectRealization of " << func.name() << " entering for loop over " << for_loop->name << "\n";
         const LoopLevel &compute_level = func.schedule().compute_level();
         const LoopLevel &store_level = func.schedule().store_level();
 
@@ -824,7 +868,7 @@ private:
             function_is_used_in_stmt(func, for_loop)) {
 
             // If we're trying to inline an extern function, schedule it here and bail out
-            debug(2) << "Injecting realization of " << func.name() << " around node " << Stmt(for_loop) << "\n";
+            debug(0) << "Injecting realization of " << func.name() << " around node " << Stmt(for_loop) << "\n";
             stmt = build_realize(build_pipeline(for_loop));
             found_store_level = found_compute_level = true;
             return;
@@ -832,18 +876,18 @@ private:
 
         body = mutate(body);
 
-        if (compute_level.match(for_loop->name)) {
-            debug(3) << "Found compute level\n";
+        if (compute_level.match(for_loop->name) && is_the_right_level(for_loop->name)) {
+            debug(0) << "Found compute level at " << for_loop->name << "\n";
             if (!function_is_already_realized_in_stmt(func, body) &&
                 (function_is_used_in_stmt(func, body) || is_output)) {
-                //debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
+                debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
                 body = build_pipeline(body);
             }
             found_compute_level = true;
         }
 
-        if (store_level.match(for_loop->name)) {
-            debug(3) << "Found store level\n";
+        if (store_level.match(for_loop->name) && is_the_right_level(for_loop->name)) {
+            debug(0) << "Found store level\n";
             internal_assert(found_compute_level)
                 << "The compute loop level was not found within the store loop level!\n";
 
@@ -1417,7 +1461,7 @@ private:
     using IRMutator::visit;
 
     void visit(const For *for_loop) {
-        debug(3) << "InjectGroupRealization of " << group << " entering for loop over " << for_loop->name << "\n";
+        debug(0) << "InjectGroupRealization of " << group << " entering for loop over " << for_loop->name << "\n";
 
         Stmt body = for_loop->body;
 
@@ -1953,11 +1997,11 @@ Stmt schedule_functions(const vector<Function> &outputs,
             // 1 member only -> no loop fusion
             if (funcs[0].can_be_inlined() &&
                 funcs[0].schedule().compute_level().is_inline()) {
-                debug(1) << "Inlining " << funcs[0].name() << '\n';
+                debug(0) << "Inlining " << funcs[0].name() << '\n';
                 s = inline_function(s, funcs[0]);
             } else {
-                debug(1) << "Injecting realization of " << funcs[0].name() << '\n';
-                InjectRealization injector(funcs[0], is_output_list[0], target);
+                debug(0) << "Injecting realization of " << funcs[0].name() << '\n';
+                InjectRealization injector(funcs[0], is_output_list[0], target, env);
                 s = injector.mutate(s);
                 internal_assert(injector.found_store_level && injector.found_compute_level);
             }

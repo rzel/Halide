@@ -275,18 +275,18 @@ public:
                                     string var, string consumer_name, int consumer_stage) {
             //return false;
 
-            debug(0) << "Checking " << consumer_name << ".s" << consumer_stage << "\n";
-            debug(0) << "producing func: " << producing_func.name() << "\n";
+            debug(10) << "Checking " << consumer_name << ".s" << consumer_stage << "\n";
+            debug(10) << "producing func: " << producing_func.name() << "\n";
 
-            debug(0) << "FUSED GROUP:\n";
+            debug(10) << "FUSED GROUP:\n";
             for (const auto &group : fused_groups) {
-                debug(0) << "Group: ";
+                debug(10) << "Group: ";
                 for (const auto &f : group) {
-                    debug(0) << f.name() << ", ";
+                    debug(10) << f.name() << ", ";
                 }
-                debug(0) << "\n";
+                debug(10) << "\n";
             }
-            debug(0) << "\n";
+            debug(10) << "\n";
 
             int index = -1;
             for (size_t i = 0; i < fused_groups.size(); ++i) {
@@ -298,7 +298,7 @@ public:
                 }
 
             }
-            debug(0) << "Index: " << index << "\n";
+            debug(10) << "Index: " << index << "\n";
             if (index < 0) {
                 return false;
             }
@@ -331,7 +331,7 @@ public:
                 internal_assert(iter != dims.end());
                 int index = iter - dims.begin();
                 if (index >= var_index) {
-                    debug(0) << "***FOUND MATCHING PAIR of producing " << producing_name << ".s" << std::to_string(producing_stage) << "." << var
+                    debug(10) << "***FOUND MATCHING PAIR of producing " << producing_name << ".s" << std::to_string(producing_stage) << "." << var
                      << ": " << pair.func_1 << ".s" << pair.stage_1 << " computed before"
                      << " Func " << pair.func_2 << ".s" << pair.stage_2 << " at Var " << pair.var_name << "\n";
                     return true;
@@ -360,23 +360,23 @@ public:
 
             const vector<string> func_args = func.args();
 
-            debug(0) << "STAGE: " << stage_prefix << "\n";
-            debug(0) << "INNER PRODUCTION: ";
+            debug(10) << "STAGE: " << stage_prefix << "\n";
+            debug(10) << "INNER PRODUCTION: ";
             for (const auto &s : inner_productions) {
-                debug(0) << s << ", ";
+                debug(10) << s << ", ";
             }
-            debug(0) << "\n";
+            debug(10) << "\n";
 
-            debug(0) << "producing_name: " <<  producing_name << "\n";
-            debug(0) << "producing_stage: " <<  producing_stage << "\n";
-            debug(0) << "loop_level: " <<  loop_level << "\n";
-            debug(0) << "var: " << var << "\n";
+            debug(10) << "producing_name: " <<  producing_name << "\n";
+            debug(10) << "producing_stage: " <<  producing_stage << "\n";
+            debug(10) << "loop_level: " <<  loop_level << "\n";
+            debug(10) << "var: " << var << "\n";
 
-            debug(0) << "in_pipeline: ";
+            debug(10) << "in_pipeline: ";
             for (const auto &s : in_pipeline) {
-                debug(0) << s << ", ";
+                debug(10) << s << ", ";
             }
-            debug(0) << "\n";
+            debug(10) << "\n";
 
             //TODO(psuriana): this should be every other def that gets fused with this guy if there is any
 
@@ -388,14 +388,14 @@ public:
                     inner_productions.count(func_name) ||
                     is_part_of_fused_group(fused_groups, fused_pairs, producing_func, producing_name,
                                            producing_stage, var, func_name, i.first.second)) {
-                    debug(0) << "merging box of " << func_name << "\n";
+                    debug(10) << "merging box of " << func_name << "\n";
                     merge_boxes(b, i.second);
                 }
             }
 
-            debug(0) << "\nBox\n";
+            debug(10) << "\nBox\n";
             for (const auto &it : b.bounds) {
-                std::cout << "\tmin: " << it.min << ", max: " << it.max << "\n";
+                debug(10) << "\tmin: " << it.min << ", max: " << it.max << "\n";
             }
 
             internal_assert(b.empty() || b.size() == func_args.size());
@@ -479,7 +479,7 @@ public:
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".max", new_max, s);
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".min", new_min, s);
 
-                        debug(0) << "****INJECTING BOUND HAHAHA " << func.name() + ".s0." + func_args[i]
+                        debug(10) << "****INJECTING BOUND HAHAHA " << func.name() + ".s0." + func_args[i]
                             << ": max: " << new_max << ", min: " << new_min << "\n";
                     }
 
@@ -508,7 +508,7 @@ public:
 
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".max", new_max, s);
                         s = LetStmt::make(func.name() + ".s0." + func_args[i] + ".min", new_min, s);
-                        debug(0) << "****INJECTING BOUND HMMMM " << func.name() + ".s0." + func_args[i]
+                        debug(10) << "****INJECTING BOUND HMMMM " << func.name() + ".s0." + func_args[i]
                             << ": max: " << new_max << ", min: " << new_min << "\n";
                     }
 
@@ -525,7 +525,7 @@ public:
                 LoopLevel compute_at = func.schedule().compute_level();
                 LoopLevel store_at = func.schedule().store_level();
 
-                debug(0) << "***** NAME " << name << ", compute_at: " << compute_at.to_string() << ", store_at: " << store_at.to_string() << "\n";
+                debug(10) << "***** NAME " << name << ", compute_at: " << compute_at.to_string() << ", store_at: " << store_at.to_string() << "\n";
 
                 for (size_t i = 0; i < func.schedule().bounds().size(); i++) {
                     Bound bound = func.schedule().bounds()[i];
@@ -582,7 +582,7 @@ public:
                 }
                 s = LetStmt::make(arg + ".max", b[d].max, s);
 
-                debug(0) << "****PIPELINE: " << name << "; INJECTING BOUND TTTTTT " << arg
+                debug(10) << "****PIPELINE: " << name << "; INJECTING BOUND TTTTTT " << arg
                             << ": max: " << b[d].max << ", min: " << b[d].min << "\n";
             }
 
@@ -821,9 +821,9 @@ public:
 
         // Dump the stages post-inlining for debugging
         /*
-        debug(0) << "Bounds inference stages after inlining: \n";
+        debug(10) << "Bounds inference stages after inlining: \n";
         for (size_t i = 0; i < stages.size(); i++) {
-            debug(0) << " " << i << ") " << stages[i].name << "\n";
+            debug(10) << " " << i << ") " << stages[i].name << "\n";
         }
         */
 
@@ -880,7 +880,7 @@ public:
             // Expand the bounds required of all the producers found.
             for (size_t j = 0; j < i; j++) {
                 Stage &producer = stages[j];
-                debug(0) << "Consumer: " << consumer.stage_prefix << ", producer: " << producer.stage_prefix << "\n";
+                debug(10) << "Consumer: " << consumer.stage_prefix << ", producer: " << producer.stage_prefix << "\n";
                 // A consumer depends on *all* stages of a producer, not just the last one.
                 const Box &b = boxes[producer.func.name()];
 
@@ -904,13 +904,13 @@ public:
                     // Dump out the region required of each stage for debugging.
 
                     /*
-                    debug(0) << "Box required of " << producer.name
+                    debug(10) << "Box required of " << producer.name
                              << " by " << consumer.name
                              << " stage " << consumer.stage << ":\n";
                     for (size_t k = 0; k < b.size(); k++) {
-                        debug(0) << "  " << b[k].min << " ... " << b[k].max << "\n";
+                        debug(10) << "  " << b[k].min << " ... " << b[k].max << "\n";
                     }
-                    debug(0) << "\n";
+                    debug(10) << "\n";
                     */
 
 
@@ -955,12 +955,12 @@ public:
         for (size_t i = 0; i < stages.size(); i++) {
 
             const Stage &s = stages[i];
-            debug(0) << "\n*******\nStage: " << s.stage_prefix << "\n";
+            debug(10) << "\n*******\nStage: " << s.stage_prefix << "\n";
             for (const auto &iter : s.bounds) {
-                debug(0) << "   " << iter.first.first << "." << iter.first.second << "\n";
-                debug(0) << "\t used: " << iter.second.used << "\n";
+                debug(10) << "   " << iter.first.first << "." << iter.first.second << "\n";
+                debug(10) << "\t used: " << iter.second.used << "\n";
                 for (const auto &it : iter.second.bounds) {
-                    std::cout << "\t\tmin: " << it.min << ", max: " << it.max << "\n";
+                    debug(10) << "\t\tmin: " << it.min << ", max: " << it.max << "\n";
                 }
             }
         }
@@ -969,7 +969,7 @@ public:
     using IRMutator::visit;
 
     void visit(const For *op) {
-        debug(0) << "***VISIT FOR " << op->name << "\n";
+        debug(10) << "***VISIT FOR " << op->name << "\n";
         set<string> old_inner_productions;
         inner_productions.swap(old_inner_productions);
 
@@ -1018,7 +1018,7 @@ public:
         body = mutate(body);
 
         if (!no_pipelines) {
-            debug(0) << "\n******\n+++BACK TO " << op->name << "\n";
+            debug(10) << "\n******\n+++BACK TO " << op->name << "\n";
 
             // We only care about the bounds of a func if:
             // A) We're not already in a pipeline over that func AND
@@ -1038,7 +1038,7 @@ public:
                     for (size_t j = 0; j < stages[i].consumers.size(); j++) {
                         bounds_needed[stages[i].consumers[j]] = true;
                     }
-                    debug(0) << "\nDEFINING BOUND " << i << "; FOR " << op->name << ", calling: " << stages[i].stage_prefix << "\n";
+                    debug(10) << "\nDEFINING BOUND " << i << "; FOR " << op->name << ", calling: " << stages[i].stage_prefix << "\n";
                     body = stages[i].define_bounds(fused_groups, fused_pairs, body, f, stage_name,
                                                    stage_index, op->name, in_pipeline, inner_productions, target);
                 }
@@ -1060,7 +1060,7 @@ public:
 
                     body = LetStmt::make(var + ".min", box[i].min, body);
 
-                    debug(0) << "****INJECTING BOUND PPPPPP " << var << ": max: " << box[i].max << ", min: " << box[i].min << "\n";
+                    debug(10) << "****INJECTING BOUND PPPPPP " << var << ": max: " << box[i].max << ", min: " << box[i].min << "\n";
 
                     // The following is also valid, but seems to not simplify as well
                     /*
@@ -1088,12 +1088,12 @@ public:
                     if (in.is_bounded()) {
                         body = LetStmt::make(var + ".min", in.min, body);
                         body = LetStmt::make(var + ".max", in.max, body);
-                        debug(0) << "****INJECTING BOUND FOR " << var << ": max: " << in.max << ", min: " << in.min << "\n";
+                        debug(10) << "****INJECTING BOUND FOR " << var << ": max: " << in.max << ", min: " << in.min << "\n";
                     } else {
                         // If it's not found, we're already in the
                         // scope of the injected let. The let was
                         // probably lifted to an outer level.
-                        debug(0) << "****INJECTING BOUND UNKNOWN " << var << ": max: " << in.max << ", min: " << in.min << "\n";
+                        debug(10) << "****INJECTING BOUND UNKNOWN " << var << ": max: " << in.max << ", min: " << in.min << "\n";
                         Expr val = Variable::make(Int(32), var);
                         body = LetStmt::make(var + ".min", val, body);
                         body = LetStmt::make(var + ".max", val, body);
@@ -1165,14 +1165,14 @@ Stmt bounds_inference(Stmt s,
         fused_pairs.push_back(std::move(pairs));
     }
 
-    debug(0) << "\n\n\n********\nFUSED PAIRS:\n";
+    debug(10) << "\n\n\n********\nFUSED PAIRS:\n";
     for (const auto &group : fused_pairs) {
-        debug(0) << "Group: " << "\n";
+        debug(10) << "Group: " << "\n";
         for (const auto &iter : group) {
-            debug(0) << "   Func " << iter.func_1 << ".s" << iter.stage_1 << " computed before"
+            debug(10) << "   Func " << iter.func_1 << ".s" << iter.stage_1 << " computed before"
                      << " Func " << iter.func_2 << ".s" << iter.stage_2 << " at Var " << iter.var_name << "\n";
         }
-        debug(0) << "\n";
+        debug(10) << "\n";
     }
 
     // Add an outermost bounds inference marker
