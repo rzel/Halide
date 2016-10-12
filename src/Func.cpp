@@ -1436,6 +1436,13 @@ Stage &Stage::hexagon(VarOrRVar x) {
     return *this;
 }
 
+Stage &Stage::prefetch(VarOrRVar var, Expr offset) {
+    Prefetch prefetch = {var.name(), offset};
+    definition.schedule().prefetches().push_back(prefetch);
+
+    return *this;
+}
+
 Stage &Stage::compute_with(LoopLevel loop_level) {
     user_assert(!loop_level.is_inline() && !loop_level.is_root())
         << "Undefined loop level to compute with\n";
@@ -1459,7 +1466,6 @@ Stage &Stage::compute_with(LoopLevel loop_level) {
     } else {
         loop_level.func().update(loop_level.stage()-1).schedule().fused_pairs().push_back(pair);
     }
-
     return *this;
 }
 
@@ -1859,6 +1865,12 @@ Func &Func::glsl(Var x, Var y, Var c) {
 Func &Func::hexagon(VarOrRVar x) {
     invalidate_cache();
     Stage(func, func.definition(), 0, args()).hexagon(x);
+    return *this;
+}
+
+Func &Func::prefetch(VarOrRVar var, Expr offset) {
+    invalidate_cache();
+    Stage(func, func.definition(), 0, args()).prefetch(var, offset);
     return *this;
 }
 
