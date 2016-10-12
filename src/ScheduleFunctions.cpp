@@ -727,7 +727,7 @@ class IsRealizedInStmt : public IRVisitor {
     using IRVisitor::visit;
 
     void visit(const Realize *op) {
-        debug(0) << "FIND REALIZE " << op->name << "\n";
+        //debug(0) << "FIND REALIZE " << op->name << "\n";
         IRVisitor::visit(op);
         if (op->name == func) result = true;
     }
@@ -847,7 +847,7 @@ private:
     using IRMutator::visit;
 
     void visit(const For *for_loop) {
-        debug(0) << "InjectRealization of " << func.name() << " entering for loop over " << for_loop->name << "\n";
+        debug(3) << "InjectRealization of " << func.name() << " entering for loop over " << for_loop->name << "\n";
         const LoopLevel &compute_level = func.schedule().compute_level();
         const LoopLevel &store_level = func.schedule().store_level();
 
@@ -868,7 +868,7 @@ private:
             function_is_used_in_stmt(func, for_loop)) {
 
             // If we're trying to inline an extern function, schedule it here and bail out
-            debug(0) << "Injecting realization of " << func.name() << " around node " << Stmt(for_loop) << "\n";
+            debug(3) << "Injecting realization of " << func.name() << " around node " << Stmt(for_loop) << "\n";
             stmt = build_realize(build_pipeline(for_loop));
             found_store_level = found_compute_level = true;
             return;
@@ -877,17 +877,17 @@ private:
         body = mutate(body);
 
         if (compute_level.match(for_loop->name) && is_the_right_level(for_loop->name)) {
-            debug(0) << "Found compute level at " << for_loop->name << "\n";
+            debug(3) << "Found compute level at " << for_loop->name << "\n";
             if (!function_is_already_realized_in_stmt(func, body) &&
                 (function_is_used_in_stmt(func, body) || is_output)) {
-                debug(0) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
+                debug(3) << "Injecting realization of " << func.name() << " around node " << for_loop->name << "\n";
                 body = build_pipeline(body);
             }
             found_compute_level = true;
         }
 
         if (store_level.match(for_loop->name) && is_the_right_level(for_loop->name)) {
-            debug(0) << "Found store level\n";
+            debug(3) << "Found store level\n";
             internal_assert(found_compute_level)
                 << "The compute loop level was not found within the store loop level!\n";
 
@@ -1461,7 +1461,7 @@ private:
     using IRMutator::visit;
 
     void visit(const For *for_loop) {
-        debug(0) << "InjectGroupRealization of " << group << " entering for loop over " << for_loop->name << "\n";
+        debug(3) << "InjectGroupRealization of " << group << " entering for loop over " << for_loop->name << "\n";
 
         Stmt body = for_loop->body;
 
@@ -1997,10 +1997,10 @@ Stmt schedule_functions(const vector<Function> &outputs,
             // 1 member only -> no loop fusion
             if (funcs[0].can_be_inlined() &&
                 funcs[0].schedule().compute_level().is_inline()) {
-                debug(0) << "Inlining " << funcs[0].name() << '\n';
+                debug(1) << "Inlining " << funcs[0].name() << '\n';
                 s = inline_function(s, funcs[0]);
             } else {
-                debug(0) << "Injecting realization of " << funcs[0].name() << '\n';
+                debug(1) << "Injecting realization of " << funcs[0].name() << '\n';
                 InjectRealization injector(funcs[0], is_output_list[0], target, env);
                 s = injector.mutate(s);
                 internal_assert(injector.found_store_level && injector.found_compute_level);

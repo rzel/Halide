@@ -92,7 +92,7 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
 
     debug(1) << "Creating initial loop nests...\n";
     Stmt s = schedule_functions(outputs, order, fused_groups, env, t, any_memoized);
-    debug(0) << "Lowering after creating initial loop nests:\n" << s << '\n';
+    debug(2) << "Lowering after creating initial loop nests:\n" << s << '\n';
 
     if (any_memoized) {
         debug(1) << "Injecting memoization...\n";
@@ -236,7 +236,7 @@ Stmt lower(vector<Function> outputs, const string &pipeline_name, const Target &
     debug(2) << "Lowering after partitioning loops:\n" << s << "\n\n";
 
     debug(1) << "Trimming loops to the region over which they do something...\n";
-    //s = trim_no_ops(s);
+    s = trim_no_ops(s);
     debug(2) << "Lowering after loop trimming:\n" << s << "\n\n";
 
     debug(1) << "Injecting early frees...\n";
