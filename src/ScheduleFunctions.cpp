@@ -12,6 +12,8 @@
 #include "IRPrinter.h"
 #include "Func.h"
 
+#include <algorithm>
+
 namespace Halide {
 namespace Internal {
 
@@ -814,6 +816,7 @@ public:
                 return it2 < it1;
             }
         }
+        return false;
     }
 
 private:
@@ -970,6 +973,7 @@ public:
         : injected_stmt(s), found_compute_level(false), compute_level(compute_level) {}
 
 private:
+    using IRMutator::visit;
 
     void visit(const For *for_loop) {
         Stmt body = mutate(for_loop->body);

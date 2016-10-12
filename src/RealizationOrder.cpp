@@ -197,11 +197,11 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         indirect_calls.emplace(caller.first, std::move(more_funcs));
     }
 
-    /*debug(0) << "\n";
+    /*debug(5) << "\n";
     for (const auto &it1 : indirect_calls) {
-        debug(0) << "Function calls by: " <<  it1.first << "\n";
+        debug(5) << "Function calls by: " <<  it1.first << "\n";
         for (const auto &it2 : it1.second) {
-            debug(0) << "  " << it2.first << "\n";
+            debug(5) << "  " << it2.first << "\n";
         }
     }*/
 
@@ -236,31 +236,31 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         }
     }
 
-    debug(0) << "\n";
+    debug(5) << "\n";
     for (const auto &i : fused_pairs_graph) {
-        debug(0) << "Fused pairs of Func " << i.first << "\n";
+        debug(5) << "Fused pairs of Func " << i.first << "\n";
         for (const auto &iter : i.second) {
-            debug(0) << "   Func " << iter.func_1 << ".s" << iter.stage_1 << " computed before"
+            debug(5) << "   Func " << iter.func_1 << ".s" << iter.stage_1 << " computed before"
                      << " Func " << iter.func_2 << ".s" << iter.stage_2 << " at Var " << iter.var_name << "\n";
         }
     }
 
-    /*debug(0) << "\n";
+    /*debug(5) << "\n";
     for (const auto &i : graph) {
-        debug(0) << "Callees of Func " << i.first << "\n";
+        debug(5) << "Callees of Func " << i.first << "\n";
         for (const auto &callee : i.second) {
-            debug(0) << callee << ", ";
+            debug(5) << callee << ", ";
         }
-        debug(0) << "\n";
+        debug(5) << "\n";
     }
 
-    debug(0) << "\n";
+    debug(5) << "\n";
     for (const auto &i : fuse_adjacency_list) {
-        debug(0) << "Neighbors of Func " << i.first << "\n";
+        debug(5) << "Neighbors of Func " << i.first << "\n";
         for (const auto &fn : i.second) {
-            debug(0) << fn << ", ";
+            debug(5) << fn << ", ";
         }
-        debug(0) << "\n";
+        debug(5) << "\n";
     }*/
 
     // Make sure we don't have cyclic compute_with: if Func f is computed after
@@ -294,21 +294,21 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         }
     }
 
-    debug(0) << "\nREALIZATION ORDER: ";
+    debug(5) << "\nREALIZATION ORDER: ";
     for (const auto &iter : order) {
-        debug(0) << iter << ", ";
+        debug(5) << iter << ", ";
     }
-    debug(0) << "\n";
+    debug(5) << "\n";
 
     vector<vector<string>> fused_groups = find_fused_groups(order, fuse_adjacency_list);
 
-    /*debug(0) << "\nBEFORE SORT\n";
+    /*debug(5) << "\nBEFORE SORT\n";
     for (const auto &group : fused_groups) {
-        debug(0) << "Fused group: " << "\n";
+        debug(5) << "Fused group: " << "\n";
         for (const auto &fn : group) {
-            debug(0) << fn << ", ";
+            debug(5) << fn << ", ";
         }
-        debug(0) << "\n";
+        debug(5) << "\n";
     }*/
 
     // Sort the fused group (and their fused-pair list) based on the realization order
@@ -322,13 +322,13 @@ pair<vector<string>, vector<vector<string>>> realization_order(
         );
     }
 
-    debug(0) << "\nAFTER SORT\n";
+    debug(5) << "\nAFTER SORT\n";
     for (const auto &group : fused_groups) {
-        debug(0) << "Fused group: " << "\n";
+        debug(5) << "Fused group: " << "\n";
         for (const auto &fn : group) {
-            debug(0) << fn << ", ";
+            debug(5) << fn << ", ";
         }
-        debug(0) << "\n";
+        debug(5) << "\n";
     }
 
     return std::make_pair(order, fused_groups);
