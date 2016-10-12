@@ -1443,7 +1443,6 @@ Stage &Stage::compute_with(LoopLevel loop_level) {
         << "Cannot schedule " << name() << " to be computed with " << loop_level.to_string()
         << ". Can only schedule an update to be computed with its immediate previous stage\n";
 
-    debug(0) << "compute_with " << name() << " at " << loop_level.to_string() << "\n";
     // We have to mark the fuse level on the "original" definition (the one
     // without the specialization) to ensure there is no competing compute_with.
     Definition &original_def = (stage == 0) ? func.definition() : func.update(stage - 1);

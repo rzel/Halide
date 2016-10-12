@@ -140,7 +140,6 @@ int multiple_fuse_group_test() {
         im = q.realize(200, 200);
     }
 
-    debug(0) << "COMPARING\n";
     auto func = [im_ref](int x, int y) {
         return im_ref(x, y);
     };
@@ -161,9 +160,57 @@ int multiple_outputs_test() {
         Func f("f"), g("g"), input("q");
 
         input(x, y) = x + y + 1;
-        f(x, y) = 10;
+        f(x, y) = 100 - input(x, y);
+        g(x, y) = x + input(x, y);
+        f.realize(f_im_ref);
+        g.realize(g_im_ref);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), input("input");
+
+        input(x, y) = x + y + 1;
         f(x, y) = print(100 - input(x, y), "\tx: ", x, "\ty: ", y);
         g(x, y) = print(x + input(x, y), "\tx: ", x, "\ty: ", y);
+
+        input.compute_at(f, y);
+        g.compute_with(f, y);
+
+        Pipeline({f, g}).realize({f_im, g_im});
+    }
+
+    auto f_func = [f_im_ref](int x, int y) {
+        return f_im_ref(x, y);
+    };
+    if (check_image(f_im, f_func)) {
+        return -1;
+    }
+
+    auto g_func = [g_im_ref](int x, int y) {
+        return g_im_ref(x, y);
+    };
+    if (check_image(g_im, g_func)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int multiple_outputs_test_with_update() {
+    const int f_size = 3;
+    const int g_size = 4;
+    Image<int> f_im(f_size, f_size), g_im(g_size, g_size);
+    Image<int> f_im_ref(f_size, f_size), g_im_ref(g_size, g_size);
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), input("q");
+
+        input(x, y) = x + y + 1;
+        f(x, y) = 10;
+        f(x, y) += 100 - input(x, y);
+        g(x, y) = x + input(x, y);
         f.realize(f_im_ref);
         g.realize(g_im_ref);
     }
@@ -174,23 +221,16 @@ int multiple_outputs_test() {
 
         input(x, y) = x + y + 1;
         f(x, y) = 10;
-        f(x, y) = print(100 - input(x, y), "\tx: ", x, "\ty: ", y);
-        g(x, y) = print(x + input(x, y), "\tx: ", x, "\ty: ", y);
+        f(x, y) += 100 - input(x, y);
+        g(x, y) = x + input(x, y);
 
         input.compute_at(f, y);
-
-        //TODO(psuriana): should this be valid???
-        //input.compute_at(g, y);
-
-        //input.compute_root();
-
         f.update(0).compute_with(f, x);
         g.compute_with(f, y);
 
         Pipeline({f, g}).realize({f_im, g_im});
     }
 
-    std::cout << "Check f\n";
     auto f_func = [f_im_ref](int x, int y) {
         return f_im_ref(x, y);
     };
@@ -198,7 +238,6 @@ int multiple_outputs_test() {
         return -1;
     }
 
-    std::cout << "Check g\n";
     auto g_func = [g_im_ref](int x, int y) {
         return g_im_ref(x, y);
     };
@@ -210,7 +249,7 @@ int multiple_outputs_test() {
 }
 
 int main(int argc, char **argv) {
-    /*printf("Running split reorder test\n");
+    printf("Running split reorder test\n");
     if (split_test() != 0) {
         return -1;
     }
@@ -218,15 +257,20 @@ int main(int argc, char **argv) {
     printf("Running fuse test\n");
     if (fuse_test() != 0) {
         return -1;
-    }*/
+    }
 
-    /*printf("Running multiple fuse group test\n");
+    printf("Running multiple fuse group test\n");
     if (multiple_fuse_group_test() != 0) {
         return -1;
-    }*/
+    }
 
     printf("Running multiple outputs test\n");
     if (multiple_outputs_test() != 0) {
+        return -1;
+    }
+
+    printf("Running multiple outputs with update test\n");
+    if (multiple_outputs_test_with_update() != 0) {
         return -1;
     }
 
