@@ -303,12 +303,12 @@ int multiple_outputs_test_with_update() {
 }
 
 int main(int argc, char **argv) {
-    /*printf("Running split test\n");
+    printf("Running split reorder test\n");
     if (split_test() != 0) {
         return -1;
     }
 
-    printf("Running fuse test\n");
+    /*printf("Running fuse test\n");
     if (fuse_test() != 0) {
         return -1;
     }
@@ -326,9 +326,9 @@ int main(int argc, char **argv) {
     printf("Running multiple outputs with update test\n");
     if (multiple_outputs_test_with_update() != 0) {
         return -1;
-    }*/
+    }
 
-    /*printf("Running fuse updates test\n");
+    printf("Running fuse updates test\n");
     if (fuse_updates_test() != 0) {
         return -1;
     }*/
