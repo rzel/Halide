@@ -163,6 +163,24 @@ Stmt build_provide_loop_nest_helper(string func_name,
                 }
             }
 
+            // If the split variable is fused, it's not legal to use ShiftInwards as the tail strategy
+            if ((start_fuse >= 0) && (start_fuse < (int)s.dims().size()-1)) {
+                const auto iter_inner = std::find_if(s.dims().begin(), s.dims().end(),
+                    [&split](const Dim& d) { return (d.var == split.inner); });
+                internal_assert(iter_inner != s.dims().end());
+
+                const auto iter_outer = std::find_if(s.dims().begin(), s.dims().end(),
+                    [&split](const Dim& d) { return (d.var == split.outer); });
+                internal_assert(iter_outer != s.dims().end());
+
+                if (((iter_inner - s.dims().begin()) >= start_fuse) || ((iter_outer - s.dims().begin()) >= start_fuse)) {
+                    user_assert(tail != TailStrategy::ShiftInwards)
+                        << "When splitting Var " << split.old_var
+                        << " ShiftInwards is not a legal tail strategy since its inner/outer is fused, as"
+                        << " it may change the meaning of the algorithm\n";
+                }
+            }
+
             if ((iter != dim_extent_alignment.end()) &&
                 is_zero(simplify(iter->second % split.factor))) {
                 // We have proved that the split factor divides the
@@ -1862,6 +1880,8 @@ void validate_schedule(Function f, Stmt s, const Target &target, bool is_output,
 void validate_fused_group_schedule_helper(const string &fn, size_t stage,
                                           const Definition &def_1,
                                           const map<string, Function> &env) {
+    //TODO(psuriana): if the fused defs are part of the same funcs they have to have
+    // the same exact schedule on the fused dimensions (especially with rename and tail strategy)
     for (const auto &p : def_1.schedule().fused_pairs()) {
         internal_assert((fn == p.func_1) && (stage == p.stage_1));
 
