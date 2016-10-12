@@ -50,7 +50,7 @@ int split_test() {
 }
 
 int fuse_updates_test() {
-    int size = 100;
+    int size = 147;
     int split_size = 7;
     Image<int> im_ref, im;
     {

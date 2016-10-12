@@ -992,7 +992,7 @@ public:
         // Figure out which stage of which function we're producing
         int producing = -1;
         Function f;
-        size_t stage_index;
+        int stage_index = -1;
         string stage_name;
         for (size_t i = 0; i < stages.size(); i++) {
             if (starts_with(op->name, stages[i].stage_prefix)) {
