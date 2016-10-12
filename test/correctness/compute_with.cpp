@@ -49,6 +49,60 @@ int split_test() {
     return 0;
 }
 
+int fuse_updates_test() {
+    int size = 100;
+    int split_size = 7;
+    Image<int> im_ref, im;
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        g(x, y) = x - y;
+        h(x, y) = x * y;
+        f(x) = x;
+        RDom r1(0, size/2, 0, size/2);
+        //r1.where(r1.x*r1.x + r1.y*r1.y < 5000);
+        f(x) += g(r1.x, r1.y) * h(r1.x, r1.y);
+        RDom r2(0, size, 0, size);
+        f(x) -= h(r2.x, r2.y);
+        im_ref = f.realize(size);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        g(x, y) = x - y;
+        h(x, y) = x * y;
+        f(x) = x;
+        RDom r1(0, size/2, 0, size/2);
+        //r1.where(r1.x*r1.x + r1.y*r1.y < 5000);
+        f(x) += g(r1.x, r1.y) * h(r1.x, r1.y);
+        RDom r2(0, size, 0, size);
+        f(x) -= h(r2.x, r2.y);
+
+        Var xo("xo"), xi("xi");
+        f.split(x, xo, xi, split_size);
+        f.update(0).split(x, xo, xi, split_size);
+        f.update(1).split(x, xo, xi, split_size);
+        f.update(0).compute_with(f, xo);
+        f.update(1).compute_with(f.update(0), xo);
+
+        g.compute_at(f, xo);
+        h.compute_at(f, xi);
+
+        im = f.realize(size);
+    }
+
+    auto func = [im_ref](int x) {
+        return im_ref(x);
+    };
+    if (check_image(im, func)) {
+        return -1;
+    }
+    return 0;
+}
+
 int fuse_test() {
     Image<int> im_ref, im;
     {
@@ -249,7 +303,7 @@ int multiple_outputs_test_with_update() {
 }
 
 int main(int argc, char **argv) {
-    printf("Running split reorder test\n");
+    /*printf("Running split reorder test\n");
     if (split_test() != 0) {
         return -1;
     }
@@ -271,6 +325,11 @@ int main(int argc, char **argv) {
 
     printf("Running multiple outputs with update test\n");
     if (multiple_outputs_test_with_update() != 0) {
+        return -1;
+    }*/
+
+    printf("Running fuse updates test\n");
+    if (fuse_updates_test() != 0) {
         return -1;
     }
 

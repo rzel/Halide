@@ -795,9 +795,25 @@ public:
             const Definition &def = (stage == 0) ? f.definition() : f.update(stage - 1);
             const LoopLevel &fuse_level = def.schedule().fuse_level();
             debug(5) << "....fuse level: " << fuse_level.to_string() << "\n";
-            return (fuse_level.is_inline() || fuse_level.is_root());
-        }
+            if (fuse_level.is_inline() || fuse_level.is_root()) {
+                // Isn't fused to anyone
+                return true;
+            } else {
+                // Need to find out if it is fused at 'var'
+                const vector<Dim> &dims = def.schedule().dims();
+                const auto it1 = std::find_if(dims.begin(), dims.end(),
+                    [&fuse_level](const Dim& d) { return var_name_match(d.var, fuse_level.var().name()); });
+                internal_assert(it1 != dims.end());
 
+                const auto it2 = std::find_if(dims.begin(), dims.end(),
+                    [&var](const Dim& d) { return var_name_match(d.var, var); });
+                internal_assert(it2 != dims.end());
+
+                debug(5) << "...fused start from " << (it1 - dims.begin()) << ", current var at: " << (it2 - dims.begin()) << "\n";
+
+                return it2 < it1;
+            }
+        }
     }
 
 private:
@@ -1117,11 +1133,17 @@ private:
         map<string, Expr> bounds; // The original bounds of the loopness
         map<string, Expr> replacements;
 
+        vector<pair<string, Expr>> add_lets;
         Stmt produce;
         for (size_t i = 0; i < group.size(); ++i) {
             if (!skip[i]) {
-                produce = build_produce(group[i], produce, bounds, replacements);
+                produce = build_produce(group[i], produce, bounds, replacements, add_lets);
             }
+        }
+
+        for (size_t i = add_lets.size(); i > 0; --i) {
+            const auto &b = add_lets[i-1];
+            produce = LetStmt::make(b.first, b.second, produce);
         }
 
         // Now, replace the all the fused loops with the appropriate bounds
@@ -1179,15 +1201,15 @@ private:
         return produce;
     }*/
 
-    Stmt build_produce(Function f, Stmt produce, map<string, Expr> &bounds, map<string, Expr> &replacements) {
+    Stmt build_produce(Function f, Stmt produce, map<string, Expr> &bounds, map<string, Expr> &replacements, vector<pair<string, Expr>> &add_lets) {
         string prefix = f.name() + ".s0.";
-        produce = inject_stmt(produce, build_produce_definition(f, prefix, f.definition(), false, bounds, replacements),
+        produce = inject_stmt(produce, build_produce_definition(f, prefix, f.definition(), false, bounds, replacements, add_lets),
                               f.definition().schedule().fuse_level());
 
         for (size_t j = 0; j < f.updates().size(); ++j) {
             const Definition &def = f.updates()[j];
             string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
-            produce = inject_stmt(produce, build_produce_definition(f, prefix, def, true, bounds, replacements),
+            produce = inject_stmt(produce, build_produce_definition(f, prefix, def, true, bounds, replacements, add_lets),
                                   def.schedule().fuse_level());
         }
         return produce;
@@ -1331,7 +1353,8 @@ private:
     }
 
     Stmt build_produce_definition(Function f, const string &prefix, const Definition &def,
-                                  bool is_update, map<string, Expr> &bounds, map<string, Expr> &replacements) {
+                                  bool is_update, map<string, Expr> &bounds, map<string, Expr> &replacements,
+                                  vector<pair<string, Expr>> &add_lets) {
         // Compute the loop bounds for each dimension.
         vector<Dim> dims = def.schedule().dims(); // From inner to outer
 
@@ -1353,7 +1376,6 @@ private:
 
         // The loop bounds should be the union of the original bounds with the
         // bounds of whatever functions are fused with it.
-        vector<pair<string, Expr>> add_lets;
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
             const auto iter = std::find_if(dims.begin(), dims.end(),
                 [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
@@ -1415,10 +1437,6 @@ private:
         debug(0) << "\n";*/
 
         Stmt produce = build_provide_loop_nest(f.name(), prefix, start_fuse, f.args(), def, is_update);
-
-        for (const auto &b : add_lets) {
-            produce = LetStmt::make(b.first, b.second, produce);
-        }
 
         //TODO(psuriana): need to select the schedule so we don't doubly schedule things
         // also need to put the subsequent definition at the right loop level
@@ -1993,7 +2011,8 @@ Stmt schedule_functions(const vector<Function> &outputs,
             any_memoized = any_memoized || funcs[j-1].schedule().memoized();
         }
 
-        if (group.size() == 1) {
+        internal_assert(!group.empty());
+        if (group.size() == 1 && funcs[0].definition().schedule().fused_pairs().empty()) {
             // 1 member only -> no loop fusion
             if (funcs[0].can_be_inlined() &&
                 funcs[0].schedule().compute_level().is_inline()) {
