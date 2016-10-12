@@ -1378,6 +1378,8 @@ private:
             Expr val = Variable::make(Int(32), var);
         }
 
+        const vector<string> f_args = f.args();
+
         // The loop bounds should be the union of the original bounds with the
         // bounds of whatever functions are fused with it.
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
@@ -1405,7 +1407,7 @@ private:
             // Add any "pure" dimensions that are not part of the fused, since it may
             // be refer later by the union in case of split. Ignore __outermost
             /*debug(0) << "\n*****\nARGS:\n";
-            for (const auto &s : f.args()) {
+            for (const auto &s : f_args) {
                 debug(0) << s << ", ";
             }
             debug(0) << "\n";
@@ -1416,8 +1418,8 @@ private:
             }
             debug(0) << "\n";*/
 
-            for (size_t i = 0; i < f.args().size(); ++i) {
-                const string &var_name = f.args()[i];
+            for (size_t i = 0; i < f_args.size(); ++i) {
+                const string &var_name = f_args[i];
                 const auto iter = std::find_if(dims.begin(), dims.end(),
                     [&var_name](const Dim& d) { return var_name_match(d.var, var_name); });
                 if ((iter == dims.end()) || ((size_t)(iter - dims.begin()) < start_fuse)) {
@@ -1440,7 +1442,7 @@ private:
         }
         debug(0) << "\n";*/
 
-        Stmt produce = build_provide_loop_nest(f.name(), prefix, start_fuse, f.args(), def, is_update);
+        Stmt produce = build_provide_loop_nest(f.name(), prefix, start_fuse, f_args, def, is_update);
 
         //TODO(psuriana): need to select the schedule so we don't doubly schedule things
         // also need to put the subsequent definition at the right loop level

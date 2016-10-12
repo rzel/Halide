@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    /*printf("Running fuse test\n");
+    printf("Running fuse test\n");
     if (fuse_test() != 0) {
         return -1;
     }
@@ -331,7 +331,7 @@ int main(int argc, char **argv) {
     printf("Running fuse updates test\n");
     if (fuse_updates_test() != 0) {
         return -1;
-    }*/
+    }
 
     printf("Success!\n");
     return 0;
