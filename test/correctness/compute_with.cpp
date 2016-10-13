@@ -462,6 +462,130 @@ int double_split_fuse_test() {
     return 0;
 }
 
+int rowsum_test() {
+    const int size = 100;
+    Image<int> rowsum_im(size), g_im(size, size);
+    Image<int> rowsum_im_ref(size), g_im_ref(size, size);
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), rowsum("rowsum");
+
+        f(x, y) = x + y;
+        g(x, y) = f(x, y);
+        RDom r(0, 100);
+        rowsum(y) += f(r, y);
+
+        g.realize(g_im_ref);
+        rowsum.realize(rowsum_im_ref);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), rowsum("rowsum");
+
+        f(x, y) = x + y;
+        g(x, y) = f(x, y);
+        RDom r(0, 100);
+        rowsum(y) += f(r, y);
+
+        rowsum.compute_with(g, y);
+        rowsum.update(0).compute_with(rowsum, y);
+
+        Pipeline({g, rowsum}).realize({g_im, rowsum_im});
+    }
+
+    auto g_func = [g_im_ref](int x, int y) {
+        return g_im_ref(x, y);
+    };
+    if (check_image(g_im, g_func)) {
+        return -1;
+    }
+
+    auto rowsum_func = [rowsum_im_ref](int x, int y) {
+        return rowsum_im_ref(x, y);
+    };
+    if (check_image(rowsum_im, rowsum_func)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int rgb_yuv420_test() {
+    // Somewhat approximating the behavior of rgb -> yuv420 (downsample by half in the u and v channels)
+    const int size = 100;
+    Image<int> y_im(size, size), u_im(size/2, size/2), v_im(size/2, size/2);
+    Image<int> y_im_ref(size, size), u_im_ref(size/2, size/2), v_im_ref(size/2, size/2);
+
+    // Compute a random image
+    Image<int> input(size, size, 3);
+    for (int r = 0; r < size; r++) {
+        for (int g = 0; g < size; g++) {
+            for (int b = 0; b < 3; b++) {
+                input(r, g, b) = (rand() & 0x000000ff);
+            }
+        }
+    }
+
+    {
+        Var x("x"), y("y"), z("z");
+        Func y_part("y_part"), u_part("u_part"), v_part("v_part"), rgb("rgb");
+
+        rgb(x, y, z) = input(x, y, z);
+        y_part(x, y) = ((66 * rgb(x, y, 0) + 129 * rgb(x, y, 1) +  25 * rgb(x, y, 2) + 128) >> 8) +  16;
+        u_part(x, y) = (( -38 * rgb(2*x, 2*y, 0) -  74 * rgb(2*x, 2*y, 1) + 112 * rgb(2*x, 2*y, 2) + 128) >> 8) + 128;
+        v_part(x, y) = (( 112 * rgb(2*x, 2*y, 0) -  94 * rgb(2*x, 2*y, 1) -  18 * rgb(2*x, 2*y, 2) + 128) >> 8) + 128;
+
+        y_part.realize(y_im_ref);
+        u_part.realize(u_im_ref);
+        v_part.realize(v_im_ref);
+    }
+
+    {
+        Var x("x"), y("y"), z("z");
+        Func y_part("y_part"), u_part("u_part"), v_part("v_part"), rgb("rgb");
+
+        rgb(x, y, z) = input(x, y, z);
+        y_part(x, y) = ((66 * rgb(x, y, 0) + 129 * rgb(x, y, 1) +  25 * rgb(x, y, 2) + 128) >> 8) +  16;
+        u_part(x, y) = (( -38 * rgb(2*x, 2*y, 0) -  74 * rgb(2*x, 2*y, 1) + 112 * rgb(2*x, 2*y, 2) + 128) >> 8) + 128;
+        v_part(x, y) = (( 112 * rgb(2*x, 2*y, 0) -  94 * rgb(2*x, 2*y, 1) -  18 * rgb(2*x, 2*y, 2) + 128) >> 8) + 128;
+
+        y_part.realize(y_im_ref);
+        u_part.realize(u_im_ref);
+        v_part.realize(v_im_ref);
+
+        u_part.compute_with(y_part, y);
+        v_part.compute_with(u_part, y);
+        rgb.compute_at(y_part, y);
+
+        Pipeline({y_part, u_part, v_part}).realize({y_im, u_im, v_im});
+    }
+
+    auto y_func = [y_im_ref](int x, int y) {
+        return y_im_ref(x, y);
+    };
+    if (check_image(y_im, y_func)) {
+        return -1;
+    }
+
+    auto u_func = [u_im_ref](int x, int y) {
+        return u_im_ref(x, y);
+    };
+    if (check_image(u_im, u_func)) {
+        return -1;
+    }
+
+    auto v_func = [v_im_ref](int x, int y) {
+        return v_im_ref(x, y);
+    };
+    if (check_image(v_im, v_func)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv) {
     printf("Running split reorder test\n");
     if (split_test() != 0) {
@@ -510,6 +634,16 @@ int main(int argc, char **argv) {
 
     printf("Running double split fuse test\n");
     if (double_split_fuse_test() != 0) {
+        return -1;
+    }
+
+    printf("Running rowsum test\n");
+    if (rowsum_test() != 0) {
+        return -1;
+    }
+
+    printf("Running rgb to yuv420 test\n");
+    if (rgb_yuv420_test() != 0) {
         return -1;
     }
 
