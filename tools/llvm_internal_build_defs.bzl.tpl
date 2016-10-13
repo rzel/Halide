@@ -21,14 +21,6 @@ def get_llvm_enabled_components():
       flags.append(_components_map[c])
   return flags
 
-# def get_llvm_static_libs():
-#     static_libs = []
-#     for c in ["bitwriter", "bitreader", "linker", "ipo", "mcjit"] + %{llvm_components}:
-#         for lib in _static_libs_map[c]:
-#             if not lib in static_libs:
-#                 static_libs.append(lib)
-#     return [lib.replace("-l", "lib/lib") + ".a" for lib in static_libs]
-
 def get_llvm_linkopts():
   static_libs = []
   for c in ["bitwriter", "bitreader", "linker", "ipo", "mcjit"] + %{llvm_components}:

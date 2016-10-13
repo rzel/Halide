@@ -1,3 +1,7 @@
+# Description:
+#  Private BUILD file for zlib use inside Halide.
+#  Should not be used by code outside of Halide itself.
+
 cc_library(
     name = "zlib",
     srcs = [

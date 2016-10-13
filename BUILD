@@ -26,8 +26,8 @@ package(
     default_visibility = ["//visibility:private"],
 )
 
-load("@halide//:bazel_helpers/halide_runtime_build_helpers.bzl", "gen_runtime_targets", "runtime_srcs")
-load("@llvm//:llvm_version.bzl", "get_llvm_version", "get_llvm_enabled_components")
+load("@halide//:tools/halide_internal_build_defs.bzl", "gen_runtime_targets", "runtime_srcs")
+load("@llvm//:llvm_internal_build_defs.bzl", "get_llvm_version", "get_llvm_enabled_components")
 load("@halide//:halide.bzl", "halide_config_settings")
 
 halide_config_settings()
