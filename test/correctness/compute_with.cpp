@@ -225,8 +225,8 @@ int multiple_outputs_test() {
         Func f("f"), g("g"), input("input");
 
         input(x, y) = x + y + 1;
-        f(x, y) = print(100 - input(x, y), "\tx: ", x, "\ty: ", y);
-        g(x, y) = print(x + input(x, y), "\tx: ", x, "\ty: ", y);
+        f(x, y) = 100 - input(x, y);
+        g(x, y) = x + input(x, y);
 
         input.compute_at(f, y);
         g.compute_with(f, y);
@@ -421,6 +421,47 @@ int fuse_compute_at_test() {
     return 0;
 }
 
+int double_split_fuse_test() {
+    Image<int> im_ref, im;
+    {
+        Func f("f"), g("g");
+        Var x("x"), y("y"), xo("xo"), xi("xi"), xoo("xoo"), xoi("xoi");
+
+        f(x, y) = x + y;
+        f(x, y) += 2;
+        g(x, y) = f(x, y) + 10;
+        im_ref = g.realize(200, 200);
+    }
+
+    {
+        Func f("f"), g("g");
+        Var x("x"), y("y"), xo("xo"), xi("xi"), xoo("xoo"), xoi("xoi"), t("t");
+
+        f(x, y) = x + y;
+        f(x, y) += 2;
+        g(x, y) = f(x, y) + 10;
+
+        f.split(x, xo, xi, 37, TailStrategy::GuardWithIf);
+        f.update(0).split(x, xo, xi, 37, TailStrategy::GuardWithIf);
+        f.split(xo, xoo, xoi, 5, TailStrategy::GuardWithIf);
+        f.update(0).split(xo, xoo, xoi, 5, TailStrategy::GuardWithIf);
+        f.fuse(xoi, xi, t);
+        f.update(0).fuse(xoi, xi, t);
+        f.compute_at(g, y);
+        f.update(0).compute_with(f, t);
+
+        im = g.realize(200, 200);
+    }
+
+    auto func = [im_ref](int x, int y) {
+        return im_ref(x, y);
+    };
+    if (check_image(im, func)) {
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     printf("Running split reorder test\n");
     if (split_test() != 0) {
@@ -464,6 +505,11 @@ int main(int argc, char **argv) {
 
     printf("Running fuse compute at test\n");
     if (fuse_compute_at_test() != 0) {
+        return -1;
+    }
+
+    printf("Running double split fuse test\n");
+    if (double_split_fuse_test() != 0) {
         return -1;
     }
 
