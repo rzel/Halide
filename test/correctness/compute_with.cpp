@@ -82,8 +82,8 @@ int fuse_updates_test() {
         f(x) -= h(r2.x, r2.y);
 
         Var xo("xo"), xi("xi");
-        f.split(x, xo, xi, split_size, TailStrategy::RoundUp);
-        f.update(0).split(x, xo, xi, split_size, TailStrategy::RoundUp);
+        f.split(x, xo, xi, split_size, TailStrategy::GuardWithIf);
+        f.update(0).split(x, xo, xi, split_size, TailStrategy::GuardWithIf);
         f.update(1).split(x, xo, xi, split_size, TailStrategy::GuardWithIf);
         f.update(0).compute_with(f, xo);
         f.update(1).compute_with(f.update(0), xo);
@@ -302,8 +302,127 @@ int multiple_outputs_test_with_update() {
     return 0;
 }
 
+int skip_test_1() {
+    Image<int> im_ref, im;
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = f(x - 1, y + 1);
+        im_ref = h.realize(200, 200);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = f(x - 1, y + 1);
+
+        f.compute_root();
+        g.compute_root();
+        g.compute_with(f, x);
+        im = h.realize(200, 200);
+    }
+
+    auto func = [im_ref](int x, int y) {
+        return im_ref(x, y);
+    };
+    if (check_image(im, func)) {
+        return -1;
+    }
+    return 0;
+}
+
+int skip_test_2() {
+    Image<int> im_ref, im;
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = g(x - 1, y + 1);
+        im_ref = h.realize(200, 200);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = g(x - 1, y + 1);
+
+        f.compute_root();
+        g.compute_root();
+        g.compute_with(f, x);
+        im = h.realize(200, 200);
+    }
+
+    auto func = [im_ref](int x, int y) {
+        return im_ref(x, y);
+    };
+    if (check_image(im, func)) {
+        return -1;
+    }
+    return 0;
+}
+
+int fuse_compute_at_test() {
+    Image<int> im_ref, im;
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h"), p("p"), q("q"), r("r");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = f(x - 1, y + 1) + g(x + 2, y - 2);
+        p(x, y) = h(x, y) + 2;
+        q(x, y) = x * y;
+        r(x, y) = p(x, y - 1) + q(x - 1, y);
+        im_ref = r.realize(200, 200);
+    }
+
+    {
+        Var x("x"), y("y");
+        Func f("f"), g("g"), h("h"), p("p"), q("q"), r("r");
+
+        f(x, y) = x + y;
+        g(x, y) = x - y;
+        h(x, y) = f(x - 1, y + 1) + g(x + 2, y - 2);
+        p(x, y) = h(x, y) + 2;
+        q(x, y) = x * y;
+        r(x, y) = p(x, y - 1) + q(x - 1, y);
+
+        f.compute_at(h, y);
+        g.compute_at(h, y);
+        h.compute_at(p, y);
+        p.compute_root();
+        q.compute_root();
+        q.compute_with(p, x);
+
+        Var xo("xo"), xi("xi");
+        f.split(x, xo, xi, 7);
+        g.split(x, xo, xi, 7);
+        g.compute_with(f, xo);
+        im = r.realize(200, 200);
+    }
+
+    auto func = [im_ref](int x, int y) {
+        return im_ref(x, y);
+    };
+    if (check_image(im, func)) {
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
-    /*printf("Running split reorder test\n");
+    printf("Running split reorder test\n");
     if (split_test() != 0) {
         return -1;
     }
@@ -326,10 +445,25 @@ int main(int argc, char **argv) {
     printf("Running multiple outputs with update test\n");
     if (multiple_outputs_test_with_update() != 0) {
         return -1;
-    }*/
+    }
 
     printf("Running fuse updates test\n");
     if (fuse_updates_test() != 0) {
+        return -1;
+    }
+
+    printf("Running skip test 1\n");
+    if (skip_test_1() != 0) {
+        return -1;
+    }
+
+    printf("Running skip test 2\n");
+    if (skip_test_2() != 0) {
+        return -1;
+    }
+
+    printf("Running fuse compute at test\n");
+    if (fuse_compute_at_test() != 0) {
         return -1;
     }
 

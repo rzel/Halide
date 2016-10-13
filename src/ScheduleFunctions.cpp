@@ -164,7 +164,8 @@ Stmt build_provide_loop_nest_helper(string func_name,
             }
 
             // If the split variable is fused, it's not legal to use ShiftInwards as the tail strategy
-            if ((start_fuse >= 0) && (start_fuse < (int)s.dims().size()-1)) {
+            //TODO(psuriana): should only check this if fused of update (move to validate schedule)
+            /*if ((start_fuse >= 0) && (start_fuse < (int)s.dims().size()-1)) {
                 const auto iter_inner = std::find_if(s.dims().begin(), s.dims().end(),
                     [&split](const Dim& d) { return (d.var == split.inner); });
                 internal_assert(iter_inner != s.dims().end());
@@ -179,7 +180,7 @@ Stmt build_provide_loop_nest_helper(string func_name,
                         << " ShiftInwards is not a legal tail strategy since its inner/outer is fused, as"
                         << " it may change the meaning of the algorithm\n";
                 }
-            }
+            }*/
 
             if ((iter != dim_extent_alignment.end()) &&
                 is_zero(simplify(iter->second % split.factor))) {
@@ -1144,11 +1145,15 @@ private:
                 skip[i] = false;
             }
         }
+        //TODO(psuriana): technically should be all skip or all not skip (???)
+        internal_assert(!skip[0]);
 
         // Add the consumer nodes
         Stmt consume = s;
         for (size_t i = group.size(); i > 0; --i) {
-            consume = ProducerConsumer::make(group[i-1].name(), false, consume);
+            if (!skip[i-1]) {
+                consume = ProducerConsumer::make(group[i-1].name(), false, consume);
+            }
         }
 
         // Build the loops
@@ -1193,35 +1198,19 @@ private:
 
         //debug(0) << "\n***START REPLACING\n";
 
-        /*for (size_t i = 0; i < group.size(); ++i) {
-            if (!skip[i]) {
-                //TODO(psuriana): should't use the bound of skipped function
-                produce = replace_with_union_bound(group[i], produce, bounds);
-            }
-        }*/
         produce = replace_with_union_bound(group[0], produce, bounds);
 
         // Add the producer nodes
         for (size_t i = group.size(); i > 0; --i) {
-            produce = ProducerConsumer::make(group[i-1].name(), true, produce);
+            if (!skip[i-1]) {
+                produce = ProducerConsumer::make(group[i-1].name(), true, produce);
+            }
         }
 
         return Block::make(produce, consume);
 
         //TODO(psuriana): take care of parallel/vectorize (necessary???)
     }
-
-    /*Stmt build_produce(Function f, Stmt produce) {
-        string prefix = f.name() + ".s0.";
-        produce = build_produce_definition(f, prefix, f.definition(), false, produce);
-
-        for (size_t j = 0; j < f.updates().size(); ++j) {
-            const Definition &def = f.updates()[j];
-            string prefix = f.name() + ".s" + std::to_string(j+1) + ".";
-            produce = build_produce_definition(f, prefix, def, true, produce);
-        }
-        return produce;
-    }*/
 
     Stmt build_produce(Function f, Stmt produce, map<string, Expr> &bounds, map<string, Expr> &replacements, vector<pair<string, Expr>> &add_lets) {
         string prefix = f.name() + ".s0.";
@@ -1243,13 +1232,6 @@ private:
         produce = replace_with_union_bound_definition(f, prefix, f.definition(), produce, bounds);
         debug(3) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
 
-        /*for (size_t j = 0; j < f.updates().size(); ++j) {
-            const Definition &def = f.updates()[j];
-            string prefix = f.name() + ".s" + std::to_string(j+1);
-            debug(0) << "\n*********\nBEFORE REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
-            produce = replace_with_union_bound_definition(f, prefix, def, produce, bounds);
-            debug(0) << "\n*********\nAFTER REPLACE WITH UNION " << prefix << ": \n" << produce << "\n";
-        }*/
         return produce;
     }
 
@@ -1258,9 +1240,13 @@ private:
         visited.insert(prefix);
         dependence.push_back(p);
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            const auto iter = env.find(pair.func_2);
+            if (iter == env.end()) {
+                continue;
+            }
+            const Function &f = iter->second;
             string prefix_2 = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
             if (visited.find(prefix_2) == visited.end()) {
-                const Function &f = env.find(pair.func_2)->second;
                 const Definition &def_2 = (pair.stage_2 == 0) ? f.definition() : f.update(pair.stage_2 - 1);
                 collect_all_dependence_helper(prefix_2, def_2, pair, dependence, visited);
             }
@@ -1272,9 +1258,13 @@ private:
         vector<FusedPair> dependence;
 
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            const auto iter = env.find(pair.func_2);
+            if (iter == env.end()) {
+                continue;
+            }
+            const Function &f = iter->second;
             string prefix = pair.func_2 + ".s" + std::to_string(pair.stage_2) + "." + pair.var_name;
             if (visited.find(prefix) == visited.end()) {
-                const Function &f = env.find(pair.func_2)->second;
                 const Definition &def_2 = (pair.stage_2 == 0) ? f.definition() : f.update(pair.stage_2 - 1);
                 collect_all_dependence_helper(prefix, def_2, pair, dependence, visited);
             }
@@ -1340,6 +1330,9 @@ private:
         // The loop bounds should be the union of the original bounds with the
         // bounds of whatever functions are fused with it.
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            if (env.find(pair.func_2) == env.end()) {
+                continue;
+            }
             const auto iter = std::find_if(dims.begin(), dims.end(),
                 [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
             internal_assert(iter != dims.end());
@@ -1401,6 +1394,9 @@ private:
         // The loop bounds should be the union of the original bounds with the
         // bounds of whatever functions are fused with it.
         for (const FusedPair &pair : def.schedule().fused_pairs()) {
+            if (env.find(pair.func_2) == env.end()) {
+                continue;
+            }
             const auto iter = std::find_if(dims.begin(), dims.end(),
                 [&pair](const Dim& d) { return var_name_match(d.var, pair.var_name); });
             internal_assert(iter != dims.end());
@@ -1885,8 +1881,16 @@ void validate_fused_group_schedule_helper(const string &fn, size_t stage,
     for (const auto &p : def_1.schedule().fused_pairs()) {
         internal_assert((fn == p.func_1) && (stage == p.stage_1));
 
-        const Function &func_1 = env.find(p.func_1)->second;
-        const Function &func_2 = env.find(p.func_2)->second;
+        const auto iter1 = env.find(p.func_1);
+        const auto iter2 = env.find(p.func_2);
+        internal_assert(iter1 != env.end());
+
+        if (iter2 == env.end()) { // The function is not used anywhere
+            continue;
+        }
+
+        const Function &func_1 = iter1->second;
+        const Function &func_2 = iter2->second;
         const Definition &def_2 = (p.stage_2 == 0) ? func_2.definition() : func_2.update(p.stage_2 - 1);
 
         // f2.compute_with(f1, var) is allowed only if f2 has no specializations.
@@ -2004,18 +2008,6 @@ Stmt schedule_functions(const vector<Function> &outputs,
                         const Target &target,
                         bool &any_memoized) {
 
-    // Assert that the fused group is sorted based on the realization order
-    auto iter = order.begin();
-    for (const vector<string> &group : fused_groups) {
-        internal_assert(!group.empty());
-        for (const string &fn : group) {
-            internal_assert(iter != order.end());
-            internal_assert(*iter == fn);
-            iter++;
-        }
-    }
-    internal_assert(iter == order.end());
-
     string root_var = LoopLevel::root().to_string();
     Stmt s = For::make(root_var, 0, 1, ForType::Serial, DeviceAPI::Host, Evaluate::make(0));
 
@@ -2038,7 +2030,16 @@ Stmt schedule_functions(const vector<Function> &outputs,
         }
 
         internal_assert(!group.empty());
-        if (group.size() == 1 && funcs[0].definition().schedule().fused_pairs().empty()) {
+
+        int relevant_fused_pair = 0;
+        for (const auto &pair : funcs[0].definition().schedule().fused_pairs()) {
+            if (env.find(pair.func_2) == env.end()) {
+                continue;
+            }
+            relevant_fused_pair += 1;
+        }
+        debug(5) << "relevant fused pair: " << relevant_fused_pair << "\n";
+        if ((group.size() == 1) && (relevant_fused_pair == 0)) {
             // 1 member only -> no loop fusion
             if (funcs[0].can_be_inlined() &&
                 funcs[0].schedule().compute_level().is_inline()) {
